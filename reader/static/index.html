@@ -4,12 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#214a3c">
+  <meta name="reader-runtime" content="local">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://huggingface.co https://*.huggingface.co https://*.hf.co https://tokenhub.tencentmaas.com https://tokenhub-intl.tencentmaas.com https://tokenhub.tencentcloudmaas.com https://tokenhub-intl.tencentcloudmaas.com https://tokenhub.tencentmaas.cn https://tokenhub-intl.tencentmaas.cn https://tokenhub-us.tencentcloudmaas.com; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="description" content="目讀 — 跟著你的目光，慢慢讀懂英文。支援 PDF、Markdown、文字及 Word 文件。">
   <title>目讀 · Gaze Reader</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%23264d3e'/%3E%3Cpath d='M5 16s4-7 11-7 11 7 11 7-4 7-11 7S5 16 5 16Z' fill='none' stroke='%23f8f6f0' stroke-width='1.6'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='none' stroke='%23f8f6f0' stroke-width='1.6'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/style.css">
-  <link rel="stylesheet" href="/static/gaze.css">
-  <script type="module" src="/static/app.js"></script>
+  <link rel="stylesheet" href="./static/style.css">
+  <link rel="stylesheet" href="./static/gaze.css">
+  <script type="module" src="./static/bundled/app.js"></script>
 </head>
 <body>
   <svg class="icon-definitions" aria-hidden="true"><defs>
@@ -32,7 +35,7 @@
     <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="9" r="5"/><path d="m12 13 8 8m-4-4 3-3m-6 0 3-3"/></symbol>
   </defs></svg>
   <header class="app-header">
-    <a class="brand" href="/" aria-label="目讀主頁"><span class="brand-mark"><svg><use href="#i-eye"/></svg></span><span class="brand-name">目讀<span>GAZE READER</span></span></a>
+    <a class="brand" href="./" aria-label="目讀主頁"><span class="brand-mark"><svg><use href="#i-eye"/></svg></span><span class="brand-name">目讀<span>GAZE READER</span></span></a>
     <p class="header-note">讓理解，跟上你的目光。</p>
     <button id="flashcards-open" class="button quiet header-review"><svg class="icon"><use href="#i-cards"/></svg>溫習卡<span id="review-count" class="count">0</span></button>
     <button id="vocabulary-open" class="button quiet"><svg class="icon"><use href="#i-book"/></svg>學習簿<span id="vocab-count" class="count">0</span></button>
@@ -79,9 +82,10 @@
       <div class="slider-field"><label for="dwell-time">停留多久才解釋</label><output id="dwell-output" for="dwell-time">1.8 秒</output><input id="dwell-time" type="range" min="1" max="4" value="1.8" step="0.1"></div>
       <label class="select-field" for="revisit-count"><span>重讀觸發</span><select id="revisit-count"><option value="2">2 次</option><option value="3" selected>3 次</option><option value="4">4 次</option><option value="5">5 次</option></select></label>
 
-      <div class="ai-setting"><div class="ai-setting-title"><svg class="icon small"><use href="#i-spark"/></svg><strong>AI 理解助手</strong><label class="switch"><input id="ai-enabled" type="checkbox" disabled aria-label="啟用線上 AI"><span></span></label></div><p id="ai-help">正在檢查 AI 連線設定…</p></div>
+      <div class="ai-setting"><div class="ai-setting-title"><svg class="icon small"><use href="#i-spark"/></svg><strong>裝置內翻譯</strong><input id="ai-enabled" type="checkbox" disabled hidden></div><p id="ai-help">正在準備字詞解釋…</p><button id="translation-prepare" class="button full outline" type="button">啟用離線翻譯</button><button id="translation-cancel" class="button full quiet" type="button" hidden>取消準備</button><p id="translation-status" role="status">首次需下載模型，文字不會傳到翻譯服務。</p></div>
       <div class="api-settings-entry"><button id="api-settings-open" class="button full outline" aria-haspopup="dialog" aria-controls="api-settings-dialog"><svg class="icon small"><use href="#i-key"/></svg><span>API 設定</span><svg class="icon small api-settings-arrow"><use href="#i-arrow"/></svg></button><p id="api-settings-summary">設定 TokenHub，按需要生成單字圖片。</p></div>
-      <p class="local-note"><span class="status-dot muted"></span>文件留在本機，閱讀按你步伐</p>
+      <p class="local-note"><span class="status-dot muted"></span>文件留在裝置，Key 只用於本次分頁</p>
+      <a class="demo-link" href="https://github.com/xiaoyh-code/eyetracingreading" target="_blank" rel="noopener noreferrer">開源程式與使用說明 ↗</a>
     </aside>
 
     <section class="reading-pane" aria-label="英文文章">
@@ -122,10 +126,10 @@
   <dialog id="api-settings-dialog" aria-labelledby="api-settings-title">
     <form id="api-settings-form">
       <div class="dialog-top"><div><span class="eyebrow">IMAGE CONNECTION</span><h2 id="api-settings-title">TokenHub API 設定</h2></div><button type="button" class="icon-button dialog-close" aria-label="關閉 API 設定"><svg class="icon"><use href="#i-close"/></svg></button></div>
-      <p class="dialog-note api-settings-intro">只用於單字生圖；英文發音繼續使用本機聲音。</p>
+      <p class="dialog-note api-settings-intro">用你自己的 Key 連接 TokenHub。只用於單字生圖；英文發音與裝置內翻譯不需要 Key。</p>
       <label for="tokenhub-api-key">TokenHub API Key</label>
-      <input id="tokenhub-api-key" name="api_key" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="512" placeholder="貼上 TokenHub API Key" aria-describedby="tokenhub-key-help" disabled>
-      <p id="tokenhub-key-help" class="api-field-help">密鑰儲存於這部電腦，留空保留已設定的 Key。</p>
+      <input id="tokenhub-api-key" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="512" placeholder="貼上你自己的 TokenHub API Key" aria-describedby="tokenhub-key-help" disabled>
+      <p id="tokenhub-key-help" class="api-field-help">只暫存在此分頁記憶體，重新整理或解除連接後需再輸入。不儲存到檔案或瀏覽器資料庫，不經網站後端。留空保留本次 Key。</p>
       <label for="tokenhub-base-url">服務站點與地區</label>
       <select id="tokenhub-base-url" name="base_url" disabled>
         <option value="https://tokenhub.tencentmaas.com/v1">中國站 · 廣州（tencentmaas.com）</option>
@@ -135,8 +139,9 @@
       </select>
       <div class="api-model-row"><span>生圖模型</span><code>hy-image-v3</code></div>
       <p class="api-field-help">只會在你按下生圖按鈕後發出請求，可能產生 API 費用。</p>
-      <p id="tokenhub-settings-status" class="api-settings-status" role="status">正在讀取本機設定…</p>
-      <button id="tokenhub-settings-save" class="button primary full" type="submit" disabled>儲存設定<svg class="icon small"><use href="#i-check"/></svg></button>
+      <p id="tokenhub-settings-status" class="api-settings-status" role="status">此分頁尚未連接 TokenHub。</p>
+      <button id="tokenhub-settings-save" class="button primary full" type="submit" disabled>套用至本次分頁<svg class="icon small"><use href="#i-check"/></svg></button>
+      <button id="tokenhub-settings-disconnect" class="button full quiet danger" type="button">解除連接並清除 Key</button>
     </form>
   </dialog>
   <dialog id="vocabulary-dialog">
@@ -149,7 +154,8 @@
       <p class="review-local-note">收藏的生字會自動變成溫習卡，進度只儲存在這個瀏覽器。</p>
     </section>
     <div id="vocabulary-list"></div>
-    <div class="vocabulary-actions"><button id="export-csv" class="button outline"><svg class="icon small"><use href="#i-download"/></svg>匯出 CSV</button><button id="export-json" class="button quiet">JSON</button><button id="clear-vocabulary" class="button quiet danger">清空收藏</button></div>
+    <div class="vocabulary-actions"><button id="export-csv" class="button outline"><svg class="icon small"><use href="#i-download"/></svg>匯出 CSV</button><button id="export-json" class="button quiet">匯出 JSON</button><button id="import-json" class="button quiet">匯入 JSON</button><button id="clear-vocabulary" class="button quiet danger">清空收藏</button></div>
+    <input id="vocabulary-import" type="file" accept=".json,application/json" hidden>
   </dialog>
   <dialog id="flashcard-dialog" aria-labelledby="flashcard-title">
     <div class="dialog-top"><div><span class="eyebrow">FLASH CARDS</span><h2 id="flashcard-title">溫習卡</h2></div><button class="icon-button dialog-close" aria-label="關閉溫習卡"><svg class="icon"><use href="#i-close"/></svg></button></div>

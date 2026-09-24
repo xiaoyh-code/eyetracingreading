@@ -5,6 +5,8 @@ import { GazeSnapper } from './gaze-snap.js';
 import { PronunciationPlayer } from './pronunciation.js';
 import { TokenHubSettings } from './api-settings.js';
 import { buildDeck, dueSummary, reviewCard } from './flashcards.js';
+import { api, translation } from './client-api.js';
+import { mergeVocabulary } from './vocabulary-io.js';
 
 const $ = (id) => document.getElementById(id);
 const article = $('article');
@@ -16,11 +18,13 @@ const state = {
   flashcards: null,
 };
 
+const localRuntime = document.querySelector('meta[name=reader-runtime]')?.content === 'local';
+const storageKey = key => localRuntime ? key : `${new URL('.', document.baseURI).pathname}:${key}`;
 function readStored(key, fallback) {
-  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+  try { return JSON.parse(localStorage.getItem(storageKey(key))) ?? fallback; } catch { return fallback; }
 }
 function writeStored(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+  try { localStorage.setItem(storageKey(key), JSON.stringify(value)); return true; }
   catch { toast('瀏覽器未能儲存資料。你仍可匯出生字備份。'); return false; }
 }
 const savedWords = readStored('gaze-reader-vocabulary', []);
@@ -47,37 +51,6 @@ function setIcon(button, icon, label) {
   svg.append(use);
   button.replaceChildren(svg, textElement('span', label));
 }
-function apiErrorMessage(detail) {
-  if (typeof detail === 'string') return detail;
-  if (!Array.isArray(detail)) return '未能完成操作，請稍後再試。';
-  const labels = { word: '所選單字', sentence: '這一句', text: '文章', title: '文章名稱' };
-  const messages = detail.map(error => {
-    const field = Array.isArray(error.loc) ? error.loc.at(-1) : '';
-    const label = labels[field];
-    if (!label) return null;
-    if (error.type === 'string_too_long' || error.ctx?.max_length) {
-      const limit = Number(error.ctx?.max_length);
-      const maximum = Number.isFinite(limit) ? `，最多支援 ${limit.toLocaleString()} 個字元` : '';
-      return `${label}太長${maximum}。${field === 'sentence' ? '請將原文分成較短句子後再匯入。' : '請縮短文字後再試。'}`;
-    }
-    if (error.type === 'string_too_short' || error.type === 'missing') return `${label}不能留空。`;
-    return `${label}格式不正確，請檢查文字後再試。`;
-  }).filter(Boolean);
-  return [...new Set(messages)].join(' ') || '輸入內容格式不正確，請檢查文字後再試。';
-}
-async function api(path, { body, signal, method, ...options } = {}) {
-  const init = { signal, method: method || (body === undefined ? 'GET' : 'POST'), ...options };
-  if (body instanceof FormData) init.body = body;
-  else if (body !== undefined) { init.headers = { 'Content-Type': 'application/json' }; init.body = JSON.stringify(body); }
-  const response = await fetch(path, init);
-  let result;
-  try { result = await response.json(); } catch { throw new Error('伺服器回應格式不正確，請檢查 Python 服務。'); }
-  if (!response.ok) {
-    throw new Error(apiErrorMessage(result.detail));
-  }
-  return result;
-}
-
 let pronunciationAnchor = null;
 const pronunciation = new PronunciationPlayer({ onStatus: pronunciationStatus, onAvailability: refreshPronunciation });
 const gazeSnapper = new GazeSnapper({ root: article });
@@ -85,6 +58,12 @@ const gazeCursor = new GazeCursor({ element: $('gaze-cursor'), snapper: gazeSnap
 let imageConfigRevision = 0;
 const apiSettings = new TokenHubSettings({ api, onMessage: toast, onSaved: settings => {
   imageConfigRevision++;
+  state.imageRequestId++;
+  state.imageAbort?.abort();
+  state.imageBusy = false;
+  state.imageCaption = '';
+  $('word-image').replaceChildren();
+  $('word-image').hidden = true;
   state.config.image_provider = 'tokenhub';
   state.config.image_available = settings.configured;
   state.config.image_model = settings.model;
@@ -301,7 +280,7 @@ async function loadDocument(path, body) {
     if (innerWidth < 640) $('document-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (error) {
     if (error.name !== 'AbortError') toast(error.message);
-    if (!state.document) article.replaceChildren(textElement('p', '未能載入示範文章。請確認 Python 服務已啟動，再匯入文件或重試示範文章。', 'loading-copy'));
+    if (!state.document) article.replaceChildren(textElement('p', '未能載入示範文章。請重新整理，或貼上你想閱讀的文字。', 'loading-copy'));
   } finally {
     if (state.documentAbort === abort) {
       setBusy(false);
@@ -413,7 +392,7 @@ async function generateImage() {
     if (sequence !== state.imageRequestId || documentId !== state.documentId || selectionId !== state.requestId || abort.signal.aborted) return;
     // Only image URLs are accepted; never place model output in HTML.
     const url = String(result.image_url || '');
-    if (!/^(data:image\/(png|jpeg|webp);base64,|https?:\/\/|\/)/i.test(url)) throw new Error('圖像格式不受支援。');
+    if (!/^https:\/\//i.test(url)) throw new Error('圖像格式不受支援。');
     const img = new Image();
     img.alt = result.prompt || `${focus.word} 的意思示意圖`;
     img.src = url;
@@ -619,6 +598,9 @@ async function setMode(mode) {
   tracker.setPaused(true);
   try {
     const calibration = await camera.start();
+if (!localRuntime && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register(new URL('sw.js', document.baseURI)).catch(() => {});
+}
     if (sequence !== state.cameraId) return;
     state.cameraReady = true;
     syncGazeCursor();
@@ -762,15 +744,74 @@ article.addEventListener('keydown', event => {
 window.addEventListener('scroll', () => { $('focus-lens').hidden = true; hidePronunciationAnchor(); }, { passive: true, capture: true });
 window.addEventListener('resize', () => { $('focus-lens').hidden = true; hidePronunciationAnchor(); });
 window.addEventListener('blur', hidePronunciationAnchor);
+window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
 const reviewRefresh = setInterval(updateReviewSummary, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) updateReviewSummary(); else { pronunciation.stop(); hidePronunciationAnchor(); } });
-window.addEventListener('pagehide', () => { clearInterval(reviewRefresh); apiSettings.destroy(); pronunciation.destroy(); camera.stop(); gazeCursor.destroy(); gazeSnapper.destroy(); tracker.destroy(); state.explainAbort?.abort(); state.imageAbort?.abort(); });
+window.addEventListener('pagehide', () => { clearInterval(reviewRefresh); translationAbort?.abort(); translation.destroy(); api.destroy(); apiSettings.destroy(); pronunciation.destroy(); camera.stop(); gazeCursor.destroy(); gazeSnapper.destroy(); tracker.destroy(); state.explainAbort?.abort(); state.imageAbort?.abort(); });
 
 function updateAIStatus() {
-  const online = $('ai-enabled').checked;
-  $('ai-help').textContent = online ? '已啟用：查閱的字詞及句子會送往雲端，可能產生 API 費用。' : state.config.ai_available ? `按需啟用雲端解釋。${state.config.offline_available ? '目前使用本機翻譯。' : '目前使用本機字典。'}開啟後會傳送查閱的字詞及句子。` : state.config.offline_available ? '本機翻譯已就緒。雲端 AI 尚未設定；你可以離線閱讀及翻譯。' : '目前使用示範解釋及本機字典。設定本機翻譯模型，可離線翻譯其他句子。';
-  document.querySelector('.ai-setting-title strong').textContent = '雲端 AI（選用）';
+  $('ai-enabled').checked = false;
+  $('ai-enabled').disabled = true;
+  $('ai-help').textContent = state.config.offline_available
+    ? '裝置內翻譯已就緒，文字不會傳送到翻譯服務。'
+    : '示範文章與小詞庫隨時可用。啟用模型後，可以在裝置內翻譯其他字句。';
+  $('translation-prepare').hidden = state.config.offline_available;
+  $('translation-status').hidden = localRuntime && state.config.offline_available;
 }
+let translationAbort;
+let browserTranslationChosen = !localRuntime;
+translation.onStatus = info => {
+  if (browserTranslationChosen) {
+    state.config.offline_available = info.ready;
+    updateAIStatus();
+  }
+  if (info.state === 'error') {
+    $('translation-status').hidden = false;
+    $('translation-status').textContent = info.message;
+  }
+};
+$('translation-prepare').addEventListener('click', async () => {
+  browserTranslationChosen = true;
+  translationAbort?.abort();
+  const controller = translationAbort = new AbortController();
+  $('translation-prepare').disabled = true;
+  $('translation-cancel').hidden = false;
+  $('translation-status').hidden = false;
+  $('translation-status').textContent = '正在下載並準備翻譯模型，首次需要較長時間…';
+  try {
+    await translation.prepare({ signal: controller.signal, onProgress: info => {
+      const percent = Number(info?.progress);
+      $('translation-status').textContent = Number.isFinite(percent)
+        ? `正在準備模型 ${Math.round(percent)}% · ${info.file || ''}` : '正在載入裝置內翻譯模型…';
+    } });
+    state.config.offline_available = true;
+    $('translation-status').textContent = '翻譯已就緒。模型會依瀏覽器容量快取，毋須 API Key。';
+    updateAIStatus();
+    if (state.selection) explain(state.selection, 'click', true);
+  } catch (error) {
+    $('translation-status').textContent = error.name === 'AbortError' ? '已取消準備，可稍後再試。' : error.message;
+  } finally {
+    if (translationAbort === controller) {
+      $('translation-prepare').disabled = false;
+      $('translation-cancel').hidden = true;
+    }
+  }
+});
+$('translation-cancel').addEventListener('click', () => translationAbort?.abort());
+$('import-json').addEventListener('click', () => $('vocabulary-import').click());
+$('vocabulary-import').addEventListener('change', async event => {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    if (file.size > 5 * 1024 * 1024) throw new Error('學習簿備份上限為 5 MB。');
+    const merged = mergeVocabulary(state.vocabulary, JSON.parse(await file.text()));
+    if (!writeStored('gaze-reader-vocabulary', merged.vocabulary)) return;
+    state.vocabulary = merged.vocabulary;
+    updateVocabulary();
+    toast(`已匯入 ${merged.added} 個生字；原有生字與進度保留。`);
+  } catch (error) { toast(error instanceof SyntaxError ? '這份檔案不是有效的 JSON 備份。' : error.message); }
+  finally { event.target.value = ''; }
+});
 
 async function start() {
   updateVocabulary(); applySettings();
@@ -787,8 +828,11 @@ async function start() {
     $('paste-text').maxLength = state.config.limits?.max_characters || 150000;
     updateAIStatus(); updateImageButton();
   } catch {
-    $('ai-help').textContent = '未能連接本機服務。請檢查 Python 服務是否已啟動。';
+    $('ai-help').textContent = '未能完成初始化，請重新整理網頁。';
   }
   await loadDocument('/api/demo');
 }
 start();
+if (!localRuntime && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register(new URL('sw.js', document.baseURI)).catch(() => {});
+}

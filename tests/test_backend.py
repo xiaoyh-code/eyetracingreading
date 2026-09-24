@@ -98,41 +98,50 @@ def test_local_browser_origin_and_host_protection(client):
 
 def test_no_implicit_ai_or_image_network(client):
     response = client.post("/api/explain", json={"word": "river", "sentence": "A river flows.", "use_ai": True})
-    assert response.status_code == 503
+    assert response.status_code == 410
     image = client.post("/api/image", json={"word": "river", "sentence": "A river flows.", "use_ai": False})
-    assert image.status_code == 503
+    assert image.status_code == 410
 
 
 def test_ai_payload_is_selected_text_only_and_results_are_cached():
     ai = mock_ai()
-    with TestClient(create_app(AssistanceService(ai)), base_url="http://localhost") as client:
-        payload = {"word": "serendipity", "sentence": "I found a book by serendipity.", "use_ai": True}
+    async def run():
+        service = AssistanceService(ai, cloud_enabled=True)
+        request = ExplainRequest(word="serendipity", sentence="I found a book by serendipity.", use_ai=True)
         for _ in range(2):
-            response = client.post("/api/explain", json=payload)
-            assert response.status_code == 200
-            assert response.json()["source"] == "ai"
+            assert (await service.explain(request))["source"] == "ai"
         ai.responses.create.assert_awaited_once()
         kwargs = ai.responses.create.call_args.kwargs
         assert kwargs["store"] is False
-        assert json.loads(kwargs["input"]) == {"word": payload["word"], "sentence": payload["sentence"]}
+        assert json.loads(kwargs["input"]) == {"word": request.word, "sentence": request.sentence}
         assert kwargs["text"]["format"]["strict"] is True
+        await service.close()
+    asyncio.run(run())
 
 
 def test_ai_errors_do_not_expose_provider_details():
     ai = mock_ai()
     ai.responses.create.side_effect = RuntimeError("secret-sk-private-key")
-    with TestClient(create_app(AssistanceService(ai)), base_url="http://localhost") as client:
-        response = client.post("/api/explain", json={"word": "word", "sentence": "A word.", "use_ai": True})
-        assert response.status_code == 502
-        assert "secret-sk" not in response.text
+    async def run():
+        service = AssistanceService(ai, cloud_enabled=True)
+        with pytest.raises(AssistanceError) as error:
+            await service.explain(ExplainRequest(word="word", sentence="A word.", use_ai=True))
+        assert error.value.status_code == 502
+        assert "secret-sk" not in str(error.value)
+        await service.close()
+    asyncio.run(run())
 
 
 def test_invalid_ai_output_is_rejected():
     ai = mock_ai()
     ai.responses.create.return_value = SimpleNamespace(output_text='{"meaning": "incomplete"}')
-    with TestClient(create_app(AssistanceService(ai)), base_url="http://localhost") as client:
-        response = client.post("/api/explain", json={"word": "word", "sentence": "A word.", "use_ai": True})
-        assert response.status_code == 502
+    async def run():
+        service = AssistanceService(ai, cloud_enabled=True)
+        with pytest.raises(AssistanceError) as error:
+            await service.explain(ExplainRequest(word="word", sentence="A word.", use_ai=True))
+        assert error.value.status_code == 502
+        await service.close()
+    asyncio.run(run())
 
 
 def test_concurrent_ai_requests_are_deduplicated():
@@ -142,7 +151,7 @@ def test_concurrent_ai_requests_are_deduplicated():
         return SimpleNamespace(output_text=json.dumps(EXPLANATION))
     ai.responses.create.side_effect = delayed
     async def run():
-        service = AssistanceService(ai)
+        service = AssistanceService(ai, cloud_enabled=True)
         request = ExplainRequest(word="serendipity", sentence="A moment of serendipity.", use_ai=True)
         responses = await asyncio.gather(*(service.explain(request) for _ in range(5)))
         assert all(response["source"] == "ai" for response in responses)
@@ -154,7 +163,7 @@ def test_concurrent_ai_requests_are_deduplicated():
 def test_image_generation_is_validated_cached_and_rate_limited():
     ai = mock_ai()
     async def run():
-        service = AssistanceService(ai)
+        service = AssistanceService(ai, cloud_enabled=True)
         request = ImageRequest(word="river", sentence="A river flows.", use_ai=True)
         image = await service.image(request)
         assert base64.b64decode(image["image_url"].split(",")[1]).startswith(b"\x89PNG")
@@ -211,41 +220,46 @@ def mock_tencent(statuses=("5",)):
 def test_tencent_image_works_without_openai_and_requires_explicit_opt_in(monkeypatch):
     monkeypatch.setenv("IMAGE_PROVIDER", "tencent")
     tencent = mock_tencent()
-    service = AssistanceService(tencent_client=tencent)
-    with TestClient(create_app(service), base_url="http://localhost") as client:
-        config = client.get("/api/config").json()
-        assert config["ai_available"] is False
-        assert config["image_available"] is True
-        assert config["image_provider"] == "tencent"
-        assert config["image_model"] == "Hunyuan Image"
+    async def run():
+        service = AssistanceService(tencent_client=tencent, cloud_enabled=True)
+        assert not service.available
+        assert service.image_available
+        assert service.image_provider == "tencent"
+        assert service.display_image_model == "Hunyuan Image"
         payload = {"word": "resilience", "sentence": "The young tree showed resilience."}
-        assert client.post("/api/image", json=payload).status_code == 400
+        with pytest.raises(AssistanceError) as error:
+            await service.image(ImageRequest(**payload))
+        assert error.value.status_code == 400
         tencent.SubmitHunyuanImageJob.assert_not_called()
         for _ in range(2):
-            result = client.post("/api/image", json={**payload, "use_ai": True})
-            assert result.status_code == 200
-            assert result.json()["source"] == "tencent"
-            assert result.json()["image_url"].startswith("https://")
-            assert result.json()["expires_in_seconds"] == 3600
+            result = await service.image(ImageRequest(**payload, use_ai=True))
+            assert result["source"] == "tencent"
+            assert result["image_url"].startswith("https://")
+            assert result["expires_in_seconds"] == 3600
         tencent.SubmitHunyuanImageJob.assert_called_once()
         request = tencent.SubmitHunyuanImageJob.call_args.args[0]
         assert "resilience" in request.Prompt
         assert "The young tree showed resilience." in request.Prompt
         assert request.LogoParam is None
+        await service.close()
+    asyncio.run(run())
 
 
 def test_explicit_tencent_missing_credentials_never_falls_back_to_openai(monkeypatch):
     monkeypatch.setenv("IMAGE_PROVIDER", "tencent")
     ai = mock_ai()
-    with TestClient(create_app(AssistanceService(ai)), base_url="http://localhost") as client:
-        config = client.get("/api/config").json()
-        assert config["ai_available"] is True
-        assert config["image_provider"] == "tencent"
-        assert config["image_available"] is False
-        response = client.post("/api/image", json={"word": "river", "sentence": "A river flows.", "use_ai": True})
-        assert response.status_code == 503
-        assert "TENCENT_SECRET_ID" in response.json()["detail"]
+    async def run():
+        service = AssistanceService(ai, cloud_enabled=True)
+        assert service.available
+        assert service.image_provider == "tencent"
+        assert not service.image_available
+        with pytest.raises(AssistanceError) as error:
+            await service.image(ImageRequest(word="river", sentence="A river flows.", use_ai=True))
+        assert error.value.status_code == 503
+        assert "TENCENT_SECRET_ID" in str(error.value)
         ai.images.generate.assert_not_awaited()
+        await service.close()
+    asyncio.run(run())
 
 
 def test_tencent_credentials_are_not_exposed_by_config(monkeypatch):
@@ -254,18 +268,18 @@ def test_tencent_credentials_are_not_exposed_by_config(monkeypatch):
     monkeypatch.setenv("TENCENT_SECRET_KEY", "private-secret-key")
     with TestClient(create_app(), base_url="http://localhost") as client:
         response = client.get("/api/config")
-        assert response.json()["image_available"] is True
+        assert response.json()["image_available"] is False
         assert "private-secret" not in response.text
 
 
 def test_auto_image_provider_preference(monkeypatch):
     monkeypatch.setenv("TENCENT_SECRET_ID", "fake-id")
     monkeypatch.setenv("TENCENT_SECRET_KEY", "fake-key")
-    assert AssistanceService(mock_ai()).image_provider == "tencent"
+    assert AssistanceService(mock_ai(), cloud_enabled=True).image_provider == "tencent"
     monkeypatch.setenv("TOKENHUB_API_KEY", "test-tokenhub-key")
-    assert AssistanceService(mock_ai()).image_provider == "tokenhub"
+    assert AssistanceService(mock_ai(), cloud_enabled=True).image_provider == "tokenhub"
     monkeypatch.setenv("LOCAL_IMAGE_URL", "http://localhost:7860")
-    assert AssistanceService(mock_ai()).image_provider == "local"
+    assert AssistanceService(mock_ai(), cloud_enabled=True).image_provider == "local"
 
 
 def test_tokenhub_images_are_separate_from_openai_and_cache_paid_requests(monkeypatch):
@@ -277,36 +291,40 @@ def test_tokenhub_images_are_separate_from_openai_and_cache_paid_requests(monkey
         seen.append(request)
         return httpx.Response(200, json={"data": [{"url": "https://aigc-image.cos.myqcloud.com/card.png"}]})
 
-    transport_client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
-    service = AssistanceService(tokenhub_client=transport_client)
-    with TestClient(create_app(service), base_url="http://localhost") as client:
-        config = client.get("/api/config")
-        assert config.json()["image_provider"] == "tokenhub"
-        assert config.json()["image_available"] is True
-        assert config.json()["ai_available"] is False
-        assert config.json()["image_model"] == "hy-image-v3"
-        assert "private-tokenhub" not in config.text
-        payload = {"word": "resilience", "sentence": "The tree showed resilience."}
-        assert client.post("/api/image", json=payload).status_code == 400
-        assert not seen
-        for _ in range(2):
-            response = client.post("/api/image", json={**payload, "use_ai": True})
-            assert response.status_code == 200
-            assert response.json()["source"] == "tokenhub"
-            assert response.json()["expires_in_seconds"] == 43200
-        assert len(seen) == 1
-    asyncio.run(transport_client.aclose())
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as transport_client:
+            service = AssistanceService(tokenhub_client=transport_client, cloud_enabled=True)
+            assert service.image_provider == "tokenhub"
+            assert service.image_available
+            assert not service.available
+            assert service.display_image_model == "hy-image-v3"
+            payload = {"word": "resilience", "sentence": "The tree showed resilience."}
+            with pytest.raises(AssistanceError) as error:
+                await service.image(ImageRequest(**payload))
+            assert error.value.status_code == 400
+            assert not seen
+            for _ in range(2):
+                response = await service.image(ImageRequest(**payload, use_ai=True))
+                assert response["source"] == "tokenhub"
+                assert response["expires_in_seconds"] == 43200
+            assert len(seen) == 1
+            await service.close()
+    asyncio.run(run())
 
 
 def test_tokenhub_missing_key_does_not_use_other_provider(monkeypatch):
     monkeypatch.setenv("IMAGE_PROVIDER", "tokenhub")
     ai = mock_ai()
-    with TestClient(create_app(AssistanceService(ai)), base_url="http://localhost") as client:
-        assert client.get("/api/config").json()["image_available"] is False
-        response = client.post("/api/image", json={"word": "river", "sentence": "A river flows.", "use_ai": True})
-        assert response.status_code == 503
-        assert "TOKENHUB_API_KEY" in response.json()["detail"]
+    async def run():
+        service = AssistanceService(ai, cloud_enabled=True)
+        assert not service.image_available
+        with pytest.raises(AssistanceError) as error:
+            await service.image(ImageRequest(word="river", sentence="A river flows.", use_ai=True))
+        assert error.value.status_code == 503
+        assert "TOKENHUB_API_KEY" in str(error.value)
         ai.images.generate.assert_not_awaited()
+        await service.close()
+    asyncio.run(run())
 
 
 def test_tencent_pending_job_resumes_without_resubmission():

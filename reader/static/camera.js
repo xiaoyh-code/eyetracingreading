@@ -14,7 +14,7 @@ function loadWebGazer() {
       libraryPromise = null;
       reject(new Error('鏡頭元件未安裝或載入失敗。請先執行 python scripts/prepare_webgazer.py，再重新整理。'));
     };
-    script.src = '/static/vendor/webgazer.js';
+    script.src = new URL('../vendor/webgazer.js', import.meta.url).href;
     script.onload = () => {
       clearTimeout(timer);
       if (window.webgazer) resolve(window.webgazer);
@@ -59,7 +59,7 @@ export class CameraTracker {
       const wg = await this._abortable(loadWebGazer(), signal);
       this._assert(signal);
       this.wg = wg;
-      wg.params.faceMeshSolutionPath = '/static/vendor/mediapipe/face_mesh';
+      wg.params.faceMeshSolutionPath = new URL('../vendor/mediapipe/face_mesh', import.meta.url).href;
       wg.saveDataAcrossSessions(false);
       wg.showPredictionPoints(false);
       wg.showVideo(true);

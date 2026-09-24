@@ -13,3 +13,5 @@ reader/static/vendor/
 dist/
 .models/
 *.egg-info/
+node_modules/
+reader/static/bundled/

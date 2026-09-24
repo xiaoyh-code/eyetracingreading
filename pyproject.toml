@@ -1,6 +1,7 @@
 [project]
 name = "gaze-reader"
 version = "0.1.0"
+license = "GPL-3.0-or-later"
 description = "A local, gaze-assisted English reader with Traditional Chinese explanations."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"

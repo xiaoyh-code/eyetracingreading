@@ -1,4 +1,4 @@
-"""Local FastAPI server: document parsing, offline help, and optional AI."""
+"""Local FastAPI server: parsing and offline help; cloud keys stay in the browser."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlsplit
 
-from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
@@ -19,12 +18,11 @@ from starlette.concurrency import run_in_threadpool
 from . import demo
 from .assistance import AssistanceError, AssistanceService, ExplainRequest, ImageRequest
 from .documents import MAX_CHARACTERS, MAX_UPLOAD_BYTES, DocumentError, extract_upload, make_document
-from .settings import SettingsError, TokenHubSettings, TokenHubSettingsRequest
 from .speech import MacOSSpeechService, SpeechError, SpeechRequest
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(PROJECT_DIR / ".env", encoding="utf-8-sig")
 STATIC_DIR = Path(__file__).parent / "static"
+CLOUD_DISABLED = "本機伺服器不再接收、儲存或使用雲端 API Key；請在網頁輸入本次使用的密鑰。"
 
 
 class TextRequest(BaseModel):
@@ -113,11 +111,9 @@ def _offline_help(word: str, sentence: str) -> dict | None:
         return None
 
 
-def create_app(service: AssistanceService | None = None, *, speech: MacOSSpeechService | None = None,
-               env_path: Path | None = None) -> FastAPI:
-    service = service or AssistanceService()
+def create_app(service: AssistanceService | None = None, *, speech: MacOSSpeechService | None = None) -> FastAPI:
+    service = service or AssistanceService(cloud_enabled=False)
     speech = speech or MacOSSpeechService()
-    tokenhub_settings = TokenHubSettings(service, env_path if env_path is not None else PROJECT_DIR / ".env")
 
     @asynccontextmanager
     async def lifespan(_app):
@@ -128,22 +124,16 @@ def create_app(service: AssistanceService | None = None, *, speech: MacOSSpeechS
     application = FastAPI(title="目讀 · Gaze Reader", lifespan=lifespan, docs_url=None, redoc_url=None)
     application.state.assistance = service
     application.state.speech = speech
-    application.state.tokenhub_settings = tokenhub_settings
     application.add_middleware(LocalRequestGuard)
 
     @application.exception_handler(DocumentError)
     @application.exception_handler(AssistanceError)
     @application.exception_handler(SpeechError)
-    @application.exception_handler(SettingsError)
     async def handle_expected_error(_request, exc):
         return JSONResponse(status_code=exc.status_code, content={"detail": str(exc)})
 
     @application.exception_handler(RequestValidationError)
     async def handle_validation_error(request, exc):
-        if request.url.path == "/api/settings/tokenhub":
-            # Never return Pydantic's input field: it can contain the API key,
-            # even when an unrelated property or malformed JSON caused failure.
-            return JSONResponse(status_code=422, content={"detail": "TokenHub 設定格式不正確；請檢查密鑰與接口網址。"})
         if request.url.path == "/api/speech":
             return JSONResponse(status_code=422, content={"detail": "請提供一個英文單字發音，格式為 {word: 單字}。"})
         return await request_validation_exception_handler(request, exc)
@@ -166,24 +156,22 @@ def create_app(service: AssistanceService | None = None, *, speech: MacOSSpeechS
     async def health():
         return {"status": "ok"}
 
-    @application.get("/api/settings/tokenhub")
-    async def get_tokenhub_settings():
-        return tokenhub_settings.snapshot()
-
-    @application.post("/api/settings/tokenhub")
-    async def save_tokenhub_settings(request: TokenHubSettingsRequest):
-        return tokenhub_settings.save(request)
+    @application.api_route("/api/settings/tokenhub", methods=["GET", "POST"])
+    async def retired_tokenhub_settings():
+        # No body model: old clients receive a fixed error without parsing or
+        # echoing credentials, including malformed JSON and unexpected fields.
+        raise HTTPException(status_code=410, detail=CLOUD_DISABLED)
 
     @application.get("/api/config")
     async def config():
         offline_available = await run_in_threadpool(_offline_status)
         speech_status = await speech.status()
         local_image_available = bool(service.local_image_url)
-        return {"ai_available": service.available, "offline_available": offline_available,
-                "text_model": service.text_model, "image_model": service.display_image_model,
-                "image_available": service.image_available,
+        return {"ai_available": False, "offline_available": offline_available,
+                "text_model": "", "image_model": "Stable Diffusion" if local_image_available else "",
+                "image_available": local_image_available,
                 "local_image_available": local_image_available,
-                "image_provider": service.image_provider,
+                "image_provider": "local" if local_image_available else "unavailable",
                 "text_provider": "offline" if offline_available else "dictionary",
                 **speech_status,
                 "limits": {"max_upload_mb": 20, "max_characters": MAX_CHARACTERS}}
@@ -208,6 +196,8 @@ def create_app(service: AssistanceService | None = None, *, speech: MacOSSpeechS
 
     @application.post("/api/explain")
     async def explain(request: ExplainRequest):
+        if request.use_ai:
+            raise HTTPException(status_code=410, detail=CLOUD_DISABLED)
         result = await service.explain(request)
         if not request.use_ai and (result["source"] != "demo" or not result["meaning"]):
             is_demo = result["source"] == "demo"
@@ -228,7 +218,9 @@ def create_app(service: AssistanceService | None = None, *, speech: MacOSSpeechS
 
     @application.post("/api/image")
     async def create_image(request: ImageRequest):
-        return await service.image(request)
+        if not service.local_image_url:
+            raise HTTPException(status_code=410, detail=CLOUD_DISABLED)
+        return await service.local_image(request)
 
     @application.post("/api/speech")
     async def create_speech(request: SpeechRequest):

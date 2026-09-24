@@ -73,15 +73,18 @@ def offline_explanation(word: str, sentence: str) -> dict:
 class AssistanceService:
     """Per-process bounded cache, paid-call rate limits, and in-flight deduplication."""
 
-    def __init__(self, client=None, *, tencent_client=None, tokenhub_client=None):
-        self.text_model = os.getenv("OPENAI_TEXT_MODEL", "gpt-4.1-mini")
-        self.image_model = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1")
-        self._api_key = os.getenv("OPENAI_API_KEY", "").strip()
-        self.requested_image_provider = os.getenv("IMAGE_PROVIDER", "auto").strip().lower() or "auto"
+    def __init__(self, client=None, *, tencent_client=None, tokenhub_client=None, cloud_enabled: bool = False):
+        # Browser clients own session credentials. The local app never opts in
+        # to this library-only cloud mode and never reads cloud environment keys.
+        self.cloud_enabled = cloud_enabled
+        self.text_model = os.getenv("OPENAI_TEXT_MODEL", "gpt-4.1-mini") if cloud_enabled else ""
+        self.image_model = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1") if cloud_enabled else ""
+        self._api_key = os.getenv("OPENAI_API_KEY", "").strip() if cloud_enabled else ""
+        self.requested_image_provider = (os.getenv("IMAGE_PROVIDER", "auto").strip().lower() or "auto") if cloud_enabled else "auto"
         if self.requested_image_provider not in {"auto", "local", "tokenhub", "tencent", "openai"}:
             raise ValueError("IMAGE_PROVIDER 必須係 auto、local、tokenhub、tencent 或 openai。")
-        self.tencent = TencentImageService(tencent_client)
-        self.tokenhub = TokenHubImageService(tokenhub_client)
+        self.tencent = TencentImageService(tencent_client) if cloud_enabled else None
+        self.tokenhub = TokenHubImageService(tokenhub_client) if cloud_enabled else None
         image_url = os.getenv("LOCAL_IMAGE_URL", "").strip().rstrip("/")
         self.local_image_url = ""
         if image_url:
@@ -91,7 +94,7 @@ class AssistanceService:
                 raise ValueError("LOCAL_IMAGE_URL 必須係本機 HTTP 位址，例如 http://127.0.0.1:7860。")
             host = "[::1]" if parsed.hostname == "::1" else "127.0.0.1"
             self.local_image_url = f"http://{host}:{parsed.port or 80}"
-        self._client = client
+        self._client = client if cloud_enabled else None
         self._cache: dict[str, OrderedDict] = {"text": OrderedDict(), "image": OrderedDict()}
         self._calls: dict[str, deque] = {"text": deque(), "image": deque()}
         self._pending: dict[str, asyncio.Task] = {}
@@ -103,10 +106,12 @@ class AssistanceService:
 
     @property
     def available(self) -> bool:
-        return bool(self._api_key or self._client)
+        return self.cloud_enabled and bool(self._api_key or self._client)
 
     @property
     def image_provider(self) -> str:
+        if not self.cloud_enabled:
+            return "local" if self.local_image_url else "unavailable"
         if self.requested_image_provider != "auto":
             return "cloud" if self.requested_image_provider == "openai" else self.requested_image_provider
         if self.local_image_url:
@@ -119,6 +124,8 @@ class AssistanceService:
 
     @property
     def image_available(self) -> bool:
+        if not self.cloud_enabled:
+            return bool(self.local_image_url)
         return {"local": bool(self.local_image_url), "tencent": self.tencent.available,
                 "tokenhub": self.tokenhub.available, "cloud": self.available, "unavailable": False}[self.image_provider]
 
@@ -133,6 +140,8 @@ class AssistanceService:
         return self.image_model
 
     def _get_client(self):
+        if not self.cloud_enabled:
+            raise AssistanceError("本機伺服器已停用雲端 API；請使用網頁嘅本次密鑰設定。", 410)
         if not self.available:
             raise AssistanceError("未設定 OpenAI API key。請在 .env 設定後重新啟動，再開啟 AI 輔助。", 503)
         if self._client is None:
@@ -146,11 +155,14 @@ class AssistanceService:
             await asyncio.gather(*list(self._pending.values()), return_exceptions=True)
         if self._client is not None and hasattr(self._client, "close"):
             await self._client.close()
-        await self.tokenhub.close()
+        if self.tokenhub is not None:
+            await self.tokenhub.close()
         self._cache["text"].clear()
         self._cache["image"].clear()
 
     async def _paid(self, kind: str, word: str, sentence: str, operation: Callable[[], Awaitable[dict]], *, cloud: bool = True, provider: str | None = None) -> dict:
+        if cloud and not self.cloud_enabled:
+            raise AssistanceError("本機伺服器已停用雲端 API；請使用網頁嘅本次密鑰設定。", 410)
         provider = provider or ("openai" if cloud else "local")
         if cloud and provider == "openai":
             self._get_client()
@@ -210,6 +222,8 @@ class AssistanceService:
     async def explain(self, request: ExplainRequest) -> dict:
         if not request.use_ai:
             return offline_explanation(request.word, request.sentence)
+        if not self.cloud_enabled:
+            raise AssistanceError("本機伺服器已停用雲端 API；請使用網頁嘅本次密鑰設定。", 410)
 
         async def generate():
             schema = {

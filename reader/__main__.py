@@ -3,6 +3,7 @@
 import argparse
 import threading
 import webbrowser
+from pathlib import Path
 
 import uvicorn
 
@@ -15,6 +16,8 @@ def main() -> None:
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("--port must be between 1 and 65535")
+    if not (Path(__file__).parent / "static/bundled/app.js").is_file():
+        parser.error("請先在專案目錄執行 npm ci --ignore-scripts，再執行 npm run build，準備網頁元件。")
     url = f"http://127.0.0.1:{args.port}"
     print(f"\n目讀 Gaze Reader → {url}\n按 Ctrl+C 關閉。\n", flush=True)
     if args.open:

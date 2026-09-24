@@ -68,3 +68,20 @@
 - 測試沒有更改使用者現有 Key、沒有呼叫生圖或使用真實鏡頭。本機正式服務已重新啟動；唯讀確認現有 TokenHub 設定和本機發音仍可用。
 - 最後啟動檢查發現 macOS 聲線名稱新增語言標籤；已支援 `Samantha (English (US))` 等已安裝名稱。33 項語音測試及 Ruff 通過，真實本機生成 hello WAV 成功（35,696 bytes），未播放或呼叫雲端。
 - 截圖：output/playwright/api-settings.png、api-settings-mobile.png、learning-notebook-mobile.png。
+
+
+## GitHub Pages 與分頁密鑰版本（2026-09-24）
+
+本節取代早期關於 `.env` 儲存、重新整理後保留 Key 及後端雲端 API 的行為說明。
+
+- JavaScript 128 項、Python 139 項測試通過；Ruff 與 JavaScript 語法檢查通過。npm audit 未發現已知漏洞；固定 Sharp 0.35.4，避免舊間接依賴漏洞。
+- 本機及 Pages 共用網頁密鑰流程：只用合成 Key 驗證連接／解除、輸入框清空、重新整理清除、localStorage／sessionStorage 無 Key，且沒有 `/api/settings` 後端請求。移除 `.env` 自動載入及保存接口；既有本機密鑰已清走，服務已重啟。
+- 在 `/eyetracingreading/` 子路徑測試文章初始載入、MD／TXT／DOCX 匯入、純文字呈現、Flash Card 收藏及評分，以及 JSON 匯入合併；已有進度不被覆蓋，未知備份欄位不保存。手機 390 px 無水平溢出。
+- 生圖使用攔截的 TokenHub 合成回應，確認瀏覽器直接請求、Bearer header、圖片顯示及重複請求快取；沒有使用真實密鑰或發出付費生成。真實無憑證預檢允許 Authorization／POST；無憑證空 POST 回傳 401 並帶跨域回應標頭。這不等於已驗證有權限的生圖請求。
+- 真實瀏覽器 PDF 文字擷取成功。固定 ONNX 模型首次準備約 77 秒；斷網推論約 195 ms；阻擋 HTTPS 後從快取重新初始化並翻譯約 1.18 秒。完整網站 CSP 下零違規。詞庫詞義優先，罕見字的模型譯名仍可能不準確。
+- 鏡頭測試只使用合成 Canvas 串流：WebGazer、MediaPipe JS／資料／WASM 六項請求均為正確子路徑且回傳 200，WebGL 模型啟動、進入等候面部／校準狀態，Escape 停止串流並恢復滑鼠；零 CSP 違規及資源 404。未測真實鏡頭或重新量度眼球追蹤精度。
+- WebGazer 的舊 MediaPipe 執行器需 CSP `unsafe-eval`；整頁允許動態執行的取捨已記錄於 README。腳本來源限本站，vendor 資源使用固定版本與完整性檢查；PDF 解析明確停用 eval。
+- 41 個本機英文瀏覽器聲音可用；本機 Python 配置確認離線翻譯與 macOS 語音可用，雲端 AI／作者生圖 Key 均停用。未向實體喇叭播放。
+- 公開資源建置採明確清單；未列出的 vendor 檔案不會發布。掃描來源、歷史與公開包沒有發現真實 Key；`.env`、文章、個人學習簿、測試截圖均不包含於程式庫或部署包。
+
+瀏覽器 QA 產物只存在被 Git 忽略的 `output/playwright/`。

@@ -1,226 +1,159 @@
 # 目讀 · Gaze Reader
 
-在自己電腦運行的 Python 英文閱讀器。匯入文章後，用滑鼠或經校準的 webcam 選取閱讀位置；文字放大、停留及重讀提示會幫你找出想進一步理解的地方。介面使用繁體中文。
+繁體中文介面的英文閱讀工具：匯入文章，以滑鼠或經校準的 webcam 選字，放大閱讀、查看中文翻譯、聽英文發音，並將生字收進 Flash Card 溫習。
 
-## 私人程式庫與部署
+[開啟網頁版](https://xiaoyh-code.github.io/eyetracingreading/) · [原始碼](https://github.com/xiaoyh-code/eyetracingreading)
 
-此專案可存放在私人 GitHub repository，下載到自己的電腦運行。API Key、`.env`、本機模型、瀏覽器測試產物及安裝的依賴不包含在程式庫；新電腦需要按下方步驟安裝資源並重新設定 Key。學習簿儲存在原本的瀏覽器，請先匯出 JSON 備份。
+網頁版由 GitHub Pages 提供靜態檔案，無需登入或安裝 Python。也可在自己的電腦啟動本機版。兩者的雲端生圖均使用你在網頁輸入的**本次分頁密鑰**，沒有共用作者的 API Key，亦沒有代為保管密鑰的伺服器。
 
-目前不是可直接部署到 GitHub Pages 的靜態網站：文件解析、本機翻譯、密鑰設定及圖片 API 都由 Python 伺服器處理；macOS 語音後備也在本機生成。GitHub Pages [只提供靜態網站託管](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)，不能執行這些後端功能。
+## 第一次使用
 
-私人 repository 也不會自動令 Pages 網站私人；[私人 Pages 存取控制](https://docs.github.com/en/enterprise-cloud@latest/pages/getting-started-with-github-pages/changing-the-visibility-of-your-github-pages-site) 需要 GitHub Enterprise Cloud 組織。若要從外面登入使用完整功能，需另外部署支援 Python、HTTPS 和使用者驗證的服務；目前伺服器只接受 localhost，未開放外網。
+1. 開啟示範文章，將滑鼠停在英文單字上，或直接點選單字。
+2. 拖入 PDF、Markdown、TXT 或 DOCX；亦可貼上英文文字。
+3. 調整字體、行距和停留時間。示範翻譯及小型詞庫可直接使用；一般英中翻譯需先按「啟用離線翻譯」。
+4. 點喇叭播放英文發音；按「加入生字與溫習卡」收藏單字。
+5. 想以視線選字時，選擇鏡頭模式、授予相機權限，完成校準及驗證。
+6. 生圖是額外選項：在「API 設定」輸入自己的 TokenHub Key，明確按生圖按鈕才會發出雲端請求。
 
-## 開始使用
+建議使用更新的桌面 Chrome 或 Edge。相機需要 HTTPS 或 localhost；請勿直接以 `file://` 開啟 HTML。
 
-需要 Python 3.11–3.13；建議用 Python 3.12，以及 Chrome／Edge。以下指令在本資料夾執行。
+## 文件與閱讀
+
+| 格式 | 處理方式與限制 |
+| --- | --- |
+| PDF | 擷取可選取文字並重排；不保留原始版面，不包含 OCR |
+| Markdown | 擷取可讀文字，不執行匯入的 HTML 或程式碼 |
+| TXT／貼上文字 | 依段落、句子及單字排版；文字檔支援 UTF-8／UTF-16 |
+| DOCX | 擷取正文及表格文字；圖片、文字方塊、頁眉頁腳可能不保留 |
+
+網頁版在瀏覽器內解析文件，不把整份文稿上傳到 GitHub 或翻譯供應商。每個檔案上限 20 MB，文字上限 150,000 字元；瀏覽器 PDF 解析另設 300 頁上限。掃描 PDF 需先自行 OCR；加密文件需先解鎖；舊式 `.doc`／RTF 請先轉成 DOCX 或 TXT。多欄 PDF、表格和公式的閱讀順序可能需要人工校正。
+
+閱讀器只追蹤匯入此頁面的文章，不會讀取其他應用程式或整個螢幕。停留時間和重讀次數只是可調整的提示訊號，不能判斷讀者是否真正理解文字。
+
+## 離線翻譯
+
+未下載模型時，示範文章的人手句譯及小型詞庫仍然可用；未收錄的內容會清楚提示。按「啟用離線翻譯」後，瀏覽器才會下載英中模型及執行資源，首次合共約 150 MB，實際大小視快取及版本而定。
+
+模型採用 OPUS-MT，透過 Transformers.js／WebAssembly 在瀏覽器的 Worker 內執行，並轉換成繁體中文。下載模型需要網絡，翻譯時所選文字不會傳到模型託管服務。一般單字及短句可以翻譯，但它不是通用詞典或大型語言模型，不會自動創作例句；多義詞需結合整句判斷。瀏覽器每次翻譯接受最長 80 字元的單字及 1,200 字元的句子，另有模型 token 上限。
+
+模型會由瀏覽器快取，快取可能因清除網站資料、私密模式或儲存空間不足而消失。重新開頁需要再次初始化模型，有完整快取時可重用下載。網站亦會快取公開程式資源，但未使用過的功能可能尚未下載完整；**模型可離線運算，不代表 GitHub Pages 網站保證能在斷網後重新開啟**。需要穩定離線使用時，請用下方本機版。
+
+本機版亦可另裝 Python 翻譯模型，使用 CTranslate2／OpenCC 在 CPU 上運行：
 
 ```bash
-uv sync --python 3.12
 uv run python scripts/prepare_offline.py
-uv run python scripts/prepare_webgazer.py
+```
+
+這是一次約 71 MB 的模型下載，存於 `.models/en-zh`，不會提交至 Git。可用環境變數 `READER_MODEL_DIR` 指定其他位置。本機模型未安裝時，仍可使用瀏覽器翻譯選項及內置詞庫。
+
+## TokenHub 單字生圖：只用本次密鑰
+
+目前網頁介面支援騰訊 TokenHub 的 `hy-image-v3` 圖片模型。OpenAI、舊式騰訊雲 SecretId／SecretKey 及雲端語音均未在此網頁版啟用。
+
+在「API 設定」貼上你自己的 TokenHub API Key，選擇與帳戶一致的官方服務地區，再連接本次分頁。連接只更新記憶體狀態，**不驗證帳戶、不發出試用生圖、不產生測試費用**。選字後明確按生圖按鈕，才會將該字、所在句子及插畫描述直接送到所選的 TokenHub 官方 HTTPS 接口。每次要求一張 1024 × 1024 圖片，可能產生供應商費用。
+
+- 密鑰只存在目前分頁的 JavaScript 記憶體；不寫入 localStorage、sessionStorage、IndexedDB、Cookie、`.env`、GitHub 或 Python 後端。
+- 重新整理、離開／關閉頁面或按「斷開連線」會清空密鑰；瀏覽器恢復先前頁面時亦需重新連接。
+- 使用同步接口 `/v1/wand/hunyuan-image/v3-generation`，僅允許列入程式清單的騰訊官方 HTTPS 網址。
+- 請求不會自動重試。結果不明、逾時或中斷後，同一分頁對同地區、同字句設一小時防重複提交記錄；斷開或重開頁面會清除此記錄。供應商已接收的工作不一定能取消，重試前請先查看控制台，避免重複收費。
+- 成功結果只在本次分頁快取。圖片由供應商的結果網址載入，連結可能到期；不包含永久圖片收藏服務。
+
+帳戶需要有效密鑰、對應地區及圖片模型權限／額度。瀏覽器直連亦取決於 TokenHub 是否允許該網站來源的跨域請求（CORS）；如果供應商拒絕，程式會提示失敗，不會改用共用密鑰或代理轉送。測試使用模擬回應，未用訪客密鑰執行付費驗證；不能因此保證每個帳戶／地區均可生圖。
+
+供應商接收的密鑰、字句及生成內容依其政策處理；「本網站不保存」不代表供應商也不保存。請只在信任的網站及瀏覽器環境輸入密鑰；網頁程式、遭入侵的相依資源或具有相應權限的瀏覽器擴充套件仍可能取得當次密鑰。建議使用限額、最小權限及可撤銷的專用 Key。
+
+鏡頭使用鎖定版本 WebGazer 3.5.3，其 MediaPipe／Emscripten 執行器需要動態產生 JavaScript。因此 CSP 的 `script-src` 保留 `'self'`、`'wasm-unsafe-eval'`，並明確允許 `'unsafe-eval'`；沒有允許外部來源或行內腳本。這項相容性取捨適用整個頁面，不能只限於鏡頭套件，亦會減少 CSP 對程式碼注入的防護。程式不把匯入文件當成 HTML 執行，依賴以版本及完整性鎖定；這些措施不代表當次 API Key 可以抵抗所有 XSS 或相依套件入侵。
+
+官方參考：[TokenHub API 文件](https://cloud.tencent.com/document/product/1823/130078)、[Hy 圖片生成接口](https://cloud.tencent.com/document/product/1823/135745)。
+
+## Webcam 視線追蹤
+
+鏡頭模式使用 [WebGazer](https://webgazer.cs.brown.edu/)，在瀏覽器內處理鏡頭影像。相機只在你啟動此模式並授權後開啟，退出時釋放；應用程式不會上傳或保存鏡頭畫面。完成九點校準及驗證後，再開始閱讀。
+
+驗證會顯示像素誤差。一般 webcam 未必能分辨細小相鄰單字；請保持均勻光線、相對固定的臉部位置，並適度放大正文。移動頭部、改變視窗大小或環境後應重新校準。平滑及字詞吸附只能減少跳動，不能消除鏡頭本身的估計誤差；滑鼠可隨時作為精確選字的後備。未接駁 Tobii 等專用眼動儀。
+
+橙色視線游標會吸附到文章字詞附近的固定位置，並使用對應單字觸發放大及停留提示。可以關閉游標顯示；這不會停用文章追蹤。失去鏡頭訊號、暫停、切換分頁或重新校準時，停留計時中止。開啟學習簿及溫習卡時也會暫停文章追蹤。
+
+這是網頁內的閱讀提示，不控制作業系統滑鼠，也不會自動點擊按鈕。
+
+## 英文發音
+
+單字旁、詞義區及溫習卡有喇叭按鈕；按一次播放，再按同一按鈕停止。注視不會自動播音，播放亦不影響溫習評分。
+
+網頁版只使用瀏覽器明確標示為本機的英文聲音，需要作業系統已安裝相應語音。找不到本機聲音時會提示，不會改呼叫雲端 TTS。本機 Python 版在 macOS 可額外使用已安裝的英文聲音生成 WAV，再於頁面播放；此後備只經 localhost，GitHub Pages 無法呼叫你的 macOS 系統語音服務。
+
+## 學習簿與 Flash Card
+
+收藏單字後，卡片會包含英文、原句、中文詞義、翻譯及文章來源。頂部「溫習卡」可開始到期溫習；「學習簿」可查看、刪除、匯出及匯入生字。
+
+- **未記熟**：10 分鐘後再次到期，重設連續記得次數。
+- **記得**：依連續記得次數，在 1、3、7、14、30、60、90 日後重溫，最長為 90 日。
+- 預設只練新字及已到期卡片；「全部練習」亦會依評分更新下次溫習時間。
+- 空白鍵翻面，`1` 選未記熟，`2` 選記得，`Esc` 返回閱讀。
+
+收藏、評分及偏好保存在目前瀏覽器，按網站部署路徑區分；網頁版、localhost、不同瀏覽器或裝置不會自動同步。清除網站資料可能刪除它們。換裝置前請匯出 JSON 備份；JSON 包含溫習排程，CSV 供一般表格閱讀。
+
+JSON 匯入會合併生字，保留已有同字的內容及進度，不會覆蓋；上限 10,000 個生字。匯出檔可能包含你收藏的原文句子，請自行保管。移除生字會同時移除該卡片。
+
+## 資料會去邊度？
+
+| 資料 | 位置／接收方 |
+| --- | --- |
+| 閱讀文章及解析結果 | 網頁版在瀏覽器記憶體；原文不會因閱讀或離線翻譯而上傳 |
+| 相機影像及視線估計 | 瀏覽器內處理；不提交到伺服器 |
+| 收藏、溫習排程及偏好 | 瀏覽器網站儲存；可匯出及刪除 |
+| API Key | 當次分頁記憶體；生圖時直接送往你選定的 TokenHub 官方接口 |
+| 生圖單字、例句與提示 | 只有明確生圖時送到 TokenHub；供應商按其政策處理 |
+| 網站／模型下載 | GitHub Pages 及模型託管服務可收到正常網絡請求資料，例如 IP；模型下載不包含閱讀文章 |
+
+網站沒有帳戶系統、作者雲端 Key、密鑰代理或跨裝置收藏同步。Python 本機服務只監聽 `127.0.0.1`，保留文件及離線輔助功能，不用來託管多用戶雲端 API。舊版 `/api/settings/tokenhub` 密鑰儲存接口已停用；本機服務不會載入 `.env`，亦不會把環境變數內的雲端密鑰作為後備。
+
+## 在自己電腦運行
+
+需要 Node.js 22.13 或更新版本／npm、Python 3.11–3.13 和 [uv](https://docs.astral.sh/uv/)；建議 Python 3.12。在專案根目錄執行：
+
+```bash
+npm ci --ignore-scripts
+npm run build
+uv sync --python 3.12
 uv run python -m reader --open
 ```
 
-兩個安裝腳本各需一次網絡下載：翻譯模型約 71 MB；鏡頭程式和模型安裝後約 18 MB。安裝後閱讀、鏡頭追蹤和英中翻譯均可離線進行。本次工作環境已安裝好兩組資源。
+建置會準備前端資源，輸出 GitHub Pages 用的 `dist/` 及本機用的 `reader/static/bundled/`。首次安裝及每次建置均需要網絡（建置時重新下載並驗證固定版本 WebGazer）；下載的依賴、模型和建置產物不提交至 Git。開啟 `http://127.0.0.1:8765`，按 `Ctrl+C` 停止。macOS 安裝及建置後亦可使用 `launch.command`；其他連接埠可用 `uv run python -m reader --port 8766 --open`。
 
-瀏覽器開啟 <http://127.0.0.1:8765>。macOS 亦可雙擊 `launch.command`。按 `Ctrl+C` 停止伺服器。其他連接埠可用 `uv run python -m reader --port 8766 --open`。
+本機翻譯是選配，安裝指令見上方。Webcam 程式及模型由建置流程準備；不使用鏡頭時可用滑鼠閱讀。每次前端原始碼更新後請重新執行 `npm run build`。
 
-沒有 uv 時：
+## GitHub Pages 部署與開發
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
-python scripts/prepare_offline.py
-python scripts/prepare_webgazer.py
-python -m reader --open
-```
+Repository 的 GitHub Actions 工作流程會安裝鎖定的 npm 依賴、建置靜態網站，並把 `dist/` 作為 Pages artifact 部署。Pages 網站不需要 Python 伺服器或任何 API Key secret；不要在 Actions、前端環境變數或建置程式中加入使用者密鑰。
 
-### 第一次體驗
-
-1. 預設開啟示範文章；滑鼠停在英文單字上，放大鏡會跟隨該字。
-2. 停留達到設定時間，右側顯示詞義與句子解釋。點擊單字亦可直接查閱。
-3. 回到曾讀過的句子達到設定次數，會提示重讀；移過同一句內不同字不算重讀。
-4. 拖入 PDF、Markdown、TXT 或 DOCX；亦可直接貼上英文文字。
-5. 調節字體、行距和停留時間；按「加入生字與溫習卡」收藏不熟悉的單字。
-6. 按頁頂「溫習卡」，翻卡溫習；「學習簿」可匯出收藏。
-
-## Flash Card 生字溫習
-
-收藏的單字會自動成為溫習卡，之前已收藏的生字亦適用。卡片正面顯示英文單字、原句及文章來源；按「翻面睇解釋」查看中文詞義、句子翻譯，以及收藏時已有的例句和聯想提示。
-
-- **未記熟**：10 分鐘後再次到期，重設連續記得次數。
-- **記得**：依連續記得次數，在 1、3、7、14、30、60、90 日後安排重溫，最長為 90 日。
-- 預設只溫習新字和已到期卡片；亦可在「我的生字」選「全部練習」。提早練習的評分同樣會更新下次溫習時間。
-- 空白鍵翻面，`1` 選未記熟，`2` 選記得；`Esc` 返回閱讀。開啟溫習卡時暫停文章追蹤，關閉後恢復原本的暫停狀態。
-
-每次評分即時儲存在目前瀏覽器，關閉後再開仍保留進度。溫習不需要 API 或網絡服務；清除瀏覽器資料會同時刪除卡片及進度。JSON 匯出包含溫習排程，CSV 保留原有詞庫欄位；目前沒有匯入備份的介面。移除生字會一併移除該卡片。
-
-**學習簿入口**：頁面頂部「學習簿」或左邊「打開學習簿」。在文章點選單字，再按解釋區「加入生字與溫習卡」，便會收進學習簿。頂部「溫習卡」及左邊「溫習 Flash Card」可直接開始到期溫習。
-
-## Webcam 眼球追蹤
-
-先下載一次追蹤程式和模型到本機（滑鼠模式不需要）：
+自行 fork 部署時，在 GitHub repository 的 **Settings → Pages → Build and deployment** 選擇 **GitHub Actions**，並確認工作流程有 Pages 部署權限。部署網址及存取範圍由你的 GitHub Pages 設定決定；不要以私人 repository 推斷網站也一定私人。
 
 ```bash
-uv run python scripts/prepare_webgazer.py
-```
-
-在閱讀器選擇鏡頭模式，允許相機，依畫面完成九點校準和驗證。保持光線均勻、臉部位置固定。相機只會在你啟動鏡頭模式時開啟，退出鏡頭模式即釋放。
-
-Webcam 模式屬實驗性質。驗證提供像素誤差，不能保證細小相鄰單字的準確度；建議放大正文。頭部位置、視窗尺寸或環境改變後應重新校準。滑鼠模式可精確選字，也可隨時作為後備。程式目前未接駁 Tobii 等專用硬件。
-
-WebGazer 及其模型在上述安裝後由本機提供；影像處理在瀏覽器內進行，應用程式不會上傳或儲存鏡頭畫面。相機訊號消失、切換到其他分頁或暫停時，停留計時會中止。
-
-### 網頁內視線游標
-
-鏡頭校準完成後，橙色細游標會吸附到文章的字詞間隙（以及每行的頭尾），保持固定座標，避免逐像素跳動。視線穩定移到另一個位置約 100 ms 才切換，細微來回偏移會保留目前字縫。左邊「顯示視線游標」可開關顯示，選擇會保留在本瀏覽器。
-
-游標會記住吸附位置對應的單字，放大和停留解釋使用該字；尚未確認的新視線不累積舊字的停留時間。關閉游標顯示不會改變文章追蹤。視線移出文章文字附近、鏡頭訊號超過約半秒沒有更新、切換分頁、暫停或重新校準時，游標會隱藏。開啟生字簿或溫習卡時也隱藏，文章自動解釋暫停。捲動、字體或版面改變會重新計算字縫。
-
-此游標只顯示閱讀器網頁內的位置，不會移動作業系統滑鼠或自動點擊按鈕。平滑可以減少跳動，但不會改善鏡頭本身的校準誤差；實際精度仍以你的設備與校準結果為準。
-
-### 英文發音
-
-指向或點選單字，旁邊會出現喇叭按鈕；右邊詞義及溫習卡的單字旁亦可播放。按一次播放，再按同一按鈕停止；不會因注視自動播放，也不會改變卡片評分。浮動按鈕不佔文章排版空間。
-
-預設只使用本機聲音：優先選擇瀏覽器明確標示為本機的英文語音；瀏覽器沒有可用聲音時，macOS 伺服器使用已安裝的英文聲音生成 WAV，再在頁面播放。只把所選單字傳給 localhost，不需 TokenHub key 或網絡生圖服務。其他作業系統需要瀏覽器可用的本機英文聲音；未找到聲音會顯示提示。
-
-TokenHub 本身另有 [MiniMax TTS 接口](https://cloud.tencent.com/document/product/1823/135796)，支援 [英文合成](https://platform.minimax.cn/docs/api-reference/speech-t2a-http)；這與 `hy-image-v3` 生圖模型是不同服務。可使用有對應權限的 TokenHub key，但須先開通語音模型。本工具目前未接駁或呼叫這項雲端 TTS，保留離線發音。
-
-## 中文解釋及單字圖片
-
-**預設離線優先，不需要 API key。** 安裝翻譯模型後，任意英文單字及句子可在 CPU 上翻譯成繁體中文。翻譯採用 Argos／OPUS-MT 英中模型、CTranslate2 與 OpenCC；單字譯名未必能處理所有多義情況，請結合整句理解。示範文章的人手句譯及小型詞庫會優先使用。
-
-本機模型只做翻譯，未能提供通用的詞典式詳細解釋或自動創作例句。若未安裝模型，只可使用示範翻譯及內置詞庫。模型在 `.models/en-zh`；如搬到其他位置，可用 `READER_MODEL_DIR` 設定。
-
-### TokenHub 混元生圖（目前選用）
-
-TokenHub 使用單一 API key，與下方舊式騰訊雲 `SecretId`／`SecretKey` 接口分開。閱讀、翻譯與 Flash Card 繼續在本機運行；只有按「用 TokenHub 混元畫張圖」時，才把所選單字及例句送到騰訊 TokenHub。無需 OpenAI key 或開啟雲端文字助手。
-
-**在網頁設定**：左邊「API 設定」→ 貼上 TokenHub API Key → 選擇與帳戶一致的服務地區 →「儲存設定」。設定即時生效，無需重啟服務；留空儲存會保留目前的 Key。儲存只更新本機設定，不會驗證遠端權限或發出生圖請求，亦不改變本機英文發音。
-
-密鑰寫入專案根目錄的 `.env`，檔案權限為僅目前使用者讀寫，並被 Git 忽略；不寫入瀏覽器 localStorage、不在回應中返回密鑰。關閉設定或提交後輸入框會清空。若圖片仍在生成，需待任務結束才可更改設定；更改 Key 不會清除目前程序的重複請求保護。若啟動時另有手動匯出的環境變數，重新啟動仍會以該環境變數為優先；一般用 `launch.command` 啟動會讀取專案 `.env`。
-
-亦可手動設定：
-
-在本機 `.env` 設定：
-
-```dotenv
-IMAGE_PROVIDER=tokenhub
-TOKENHUB_API_KEY=你的TokenHub_API_Key
-TOKENHUB_BASE_URL=https://tokenhub.tencentmaas.com/v1
-TOKENHUB_IMAGE_MODEL=hy-image-v3
-```
-
-重新啟動 Python 服務，再重新整理閱讀器。`TOKENHUB_BASE_URL` 需與帳戶開通的站點及地域相符：上例為中國站廣州；中國站新加坡為 `https://tokenhub-intl.tencentmaas.com/v1`。國際站則使用其文件列出的 `tencentcloudmaas.com` 域名。程式僅接受已列入允許清單的騰訊官方 HTTPS 接口，不會自動跨站點重試。
-
-生圖採用同步接口 `/v1/wand/hunyuan-image/v3-generation`、模型 `hy-image-v3`，每次一張 1024 × 1024 圖片。須在 TokenHub「在線推理 → 視覺模型」開通對應模型的後付費。模型列表驗證成功只代表 key 通過鑑權，不代表已開通生圖權限。圖片連結約 12 小時有效；只回傳圖片網址，不會把 API key 傳到瀏覽器。請求逾時或結果不明時，同一字句在目前伺服器程序內一小時不會再次提交，以免重複收費；重啟會清除這項記錄。
-
-官方文件：[API 及模型列表](https://cloud.tencent.com/document/product/1823/130078)、[Hy 生圖接口與開通條件](https://cloud.tencent.com/document/product/1823/135745)。
-
-更換 key 後，可先執行 `uv run python scripts/check_tokenhub.py`。此指令只讀取模型列表，顯示鑑權結果和圖片模型狀態，不生成內容，也不顯示 key。
-
-### 騰訊雲混元生圖（SecretId／SecretKey 接口）
-
-閱讀及翻譯繼續在本機進行；只有按下生圖按鈕時，才把該單字、所在句子及插畫描述送到騰訊。生圖設定和 OpenAI 文字解釋分開，不需要 OpenAI key，也不需要開啟雲端文字助手。
-
-1. 在騰訊雲開通「混元大模型」的生圖服務。
-2. 將有該服務呼叫權限的 SecretId、SecretKey 填入本機 `.env`（不要放在聊天訊息或前端程式）。本次已建立空白設定檔；新安裝可複製 `.env.example`。
-3. 重新啟動 Python 服務，重新整理閱讀器，再選字及按「用騰訊混元畫張圖」。
-
-```dotenv
-IMAGE_PROVIDER=tencent
-TENCENT_SECRET_ID=你的SecretId
-TENCENT_SECRET_KEY=你的SecretKey
-TENCENT_REGION=ap-guangzhou
-# 使用臨時憑證時另填 TENCENT_TOKEN
-```
-
-接駁的是 `hunyuan.tencentcloudapi.com` 的 `SubmitHunyuanImageJob` 及 `QueryHunyuanImageJob`，API 版本 `2023-09-01`。SDK 在伺服器端完成簽名，一次提交後輪詢結果，不會自動重複提交生圖。生成結果連結有效期約一小時；生成可能收費，請按騰訊帳戶實際服務權限及計費設定使用。本次未提供憑證，故未發出真正收費的生成請求。
-
-官方文件：[提交生圖任務](https://cloud.tencent.com/document/product/1729/105969)、[查詢任務及結果有效期](https://cloud.tencent.com/document/product/1729/105970)。
-
-### 離線圖片（另一選擇，需安裝本機生圖服務）
-
-已實作 [Stable Diffusion WebUI 的本機 API](https://github.com/AUTOMATIC1111/stable-diffusion-webui/wiki/API) 接駁。圖片模型和服務不包含在這個小工具內：先自行安裝模型，啟动 WebUI 並帶上 `--api`，然後在 `.env` 加上：
-
-```dotenv
-LOCAL_IMAGE_URL=http://127.0.0.1:7860
-IMAGE_PROVIDER=local
-```
-
-重啟閱讀器後，單字圖片會使用本機服務，**無需開啟雲端 AI**。沒有配置服務時，圖片按鈕會清楚提示不可用。服務只接受 loopback 位址；實際出圖速度、品質和記憶體需求取決於你另外安裝的模型。現在這部電腦未有已連接的圖片模型，所以本次未測試真正本機出圖。
-
-### 可選雲端增強
-
-如果日後想要上下文詞解、額外例句或雲端圖片生成，可設定你自己的 OpenAI API key：
-
-```bash
-cp .env.example .env
-# 用文字編輯器填入 .env 的 OPENAI_API_KEY，然後重新啟動伺服器。
-```
-
-```dotenv
-OPENAI_API_KEY=your-key-here
-OPENAI_TEXT_MODEL=gpt-4.1-mini
-OPENAI_IMAGE_MODEL=gpt-image-1
-```
-
-API key 只放在 Python 伺服器端，不會傳送到瀏覽器。模型可按帳戶可用性修改。API 使用可能收費，與 ChatGPT 訂閱分開。
-
-在介面開啟雲端 AI 後，單字查詢及停留／重讀提示會把**選中的字及其句子**送到 OpenAI，取得繁體中文解釋。整份文件不會隨查詢上傳。若想用 OpenAI 生圖，另設 `IMAGE_PROVIDER=openai`；騰訊生圖保持獨立。圖片需再按生圖按鈕；程式不會因注視而不斷生成收費圖片。相同內容會短暫快取，重複或過密請求受到限制。錯誤時會顯示原因，並不會用假圖片冒充 AI 生成結果。
-
-實作參照官方文件：[文字生成](https://developers.openai.com/api/docs/guides/text)、[圖片生成](https://developers.openai.com/api/docs/guides/image-generation)。實際線上結果取決於 API key、模型權限及連線。
-
-## 支援範圍
-
-| 來源 | 處理方式 |
-| --- | --- |
-| PDF | 擷取可選取的文字，重排成閱讀版面 |
-| Markdown | 取出可讀文字；不執行 HTML 或程式碼 |
-| TXT／貼上文字 | 保留段落，逐句逐字處理 |
-| DOCX | 擷取文稿文字；不支援舊式 `.doc` |
-
-檔案上限 20 MB，文字上限 150,000 字元。掃描 PDF 需先用其他工具 OCR；加密、損壞、空白或不支援的檔案會提示原因。PDF 多欄版面、表格和特殊字型的擷取順序可能需要人工校正；這個原型是重排式文字閱讀器，並非原 PDF 版面檢視器。
-
-工具只追蹤**本閱讀器內匯入的文章**，不會跨應用程式讀取你整個螢幕。停留或重讀是可調整的協助訊號，不能推斷一個人是否真正理解文字。
-
-## 資料儲存
-
-- 文件在本機 Python 程序解析，再交由瀏覽器顯示；原始上載檔案不會寫入永久資料夾。
-- 收藏、溫習進度和閱讀偏好儲存在本瀏覽器；可在介面刪除／清空收藏。匯出的詞庫檔案由你自行保管。
-- API 回應僅在伺服器記憶體內短暫快取，重啟後清除。
-- 預設只監聽 `127.0.0.1`，適合自己電腦使用；沒有多用戶登入或公開部署功能。
-
-## 開發及驗證
-
-```bash
-uv sync
+npm ci --ignore-scripts
+npm test
+npm run build
+uv sync --python 3.12
 uv run python -m pytest
-node --test tests/*.test.mjs
 uv run ruff check reader tests scripts
-uv run python -m reader --reload
 ```
 
-後端測試使用合成 PDF／DOCX 和模擬 API，驗證解析、限制、錯誤和線上請求邊界；追蹤測試用可控制時鐘驗證停留、重讀、過期視線和暫停。真實 webcam 精度須在你的設備校準驗證，測試程式不會替你打開相機或使用收費 API。
+測試使用合成文件及模擬供應商回應，涵蓋解析限制、翻譯工作排程、密鑰生命週期、付費請求邊界、視線追蹤和 Flash Card。真實 webcam 精度仍需在你的設備驗證；測試不會替你開相機或使用付費 Key。
 
-主要結構：
+主要程式位置：
 
 ```text
-reader/
-  app.py             FastAPI、文件及輔助 API
-  documents.py       文件解析與句子／單字切分
-  assistance.py      詞庫、翻譯及圖片服務
-  offline.py         本機英中翻譯與繁體轉換
-  tencent.py         騰訊雲混元生圖任務接駁
-  tokenhub.py        TokenHub API key 與混元同步生圖接駁
-  __main__.py        本機啟動入口
-  static/            閱讀介面、視線追蹤及校準
-scripts/
-  prepare_webgazer.py 固定版本追蹤資源安裝
-  prepare_offline.py  固定版本英中模型安裝
-tests/               Python 與 JavaScript 核心測試
+reader/static/          共用閱讀介面、文件解析、視線、翻譯 Worker、分頁密鑰
+reader/app.py           本機 FastAPI：離線功能、文件解析、macOS 發音
+reader/offline.py       可選 Python 英中翻譯
+reader/speech.py        macOS 本機英文語音後備
+scripts/build-web.mjs   產生 Pages／本機前端資源
+scripts/prepare_offline.py  可選 Python 翻譯模型安裝
+tests/                 Python 與 JavaScript 測試
 ```
 
-眼球追蹤採用 [WebGazer](https://webgazer.cs.brown.edu/)；下載的第三方程式及模型保留其原有授權。WebGazer 的 GPL 授權檔會一併下載到 `reader/static/vendor/`。英中模型基於 Jörg Tiedemann 及 Santhosh Thottingal 的 OPUS-MT，原模型採用 CC-BY 4.0；來源及署名保留於 `.models/en-zh/README.md` 和 `SOURCE.txt`。相依版本記錄於 `uv.lock`。
+舊雲端 Python provider 模組僅保留作獨立程式庫及模擬測試，網頁後端不啟用，沒有由舊環境設定自動轉送請求的路徑。
+
+## 授權
+
+本專案使用 **GNU GPL v3 或更新版本（GPL-3.0-or-later）**；詳見 [LICENSE](LICENSE)。第三方套件、WebGazer 及其模型、OPUS-MT 翻譯模型分別依各自授權提供，來源及署名見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。依賴版本記錄於 `package-lock.json` 及 `uv.lock`。
