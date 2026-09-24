@@ -1,0 +1,36 @@
+.gaze-calibration {
+  position: fixed; inset: 0; z-index: 10000; background: #f8f6ef;
+  color: #182e2b; font-family: Inter, "Noto Sans TC", system-ui, sans-serif;
+  overscroll-behavior: contain;
+}
+.gaze-calibration-copy { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); width: min(580px, 66vw); text-align: center; }
+.gaze-calibration-kicker { font-size: 10px; letter-spacing: .14em; color: #55706a; }
+.gaze-calibration h2 { margin: 10px 0; font-size: 20px; line-height: 1.5; }
+.gaze-calibration-detail { margin: 8px 0; font-size: 14px; line-height: 1.65; }
+.gaze-calibration-privacy { font-size: 11px; color: #62726d; line-height: 1.6; }
+.gaze-calibration-close { position: absolute; top: 18px; right: 20px; border: 1px solid #ccd3c9; background: #fff; color: #243c33; border-radius: 8px; padding: 10px 14px; cursor: pointer; }
+.gaze-calibration-dot { position: absolute; transform: translate(-50%, -50%); width: 40px; height: 40px; border: 7px solid #d2e2ac; border-radius: 50%; background: #204739; color: #fff; font: 700 13px system-ui; display: grid; place-items: center; cursor: pointer; box-shadow: 0 0 0 5px #20473915; padding: 0; }
+.gaze-calibration-dot:hover { background: #396047; }
+.gaze-calibration-dot:focus-visible, .gaze-calibration button:focus-visible { outline: 3px solid #c18b37; outline-offset: 5px; }
+.gaze-validation-dot { width: 22px; height: 22px; border-width: 5px; cursor: default; }
+.gaze-calibration-continue { position: absolute; top: 52%; left: 50%; transform: translate(-50%, -50%); background: #234e3d; border: 0; border-radius: 10px; color: #fff; padding: 15px 24px; font: 600 15px system-ui; cursor: pointer; }
+#webgazerVideoContainer { z-index: 10001 !important; top: auto !important; bottom: 16px !important; left: 16px !important; border-radius: 10px; overflow: hidden; pointer-events: none; }
+@media (max-width: 680px) {
+  .gaze-calibration-copy { top: 66px; width: 90vw; }
+  .gaze-calibration h2 { font-size: 16px; }
+  .gaze-calibration-detail { font-size: 12px; }
+}
+
+/* The point is an estimate, separate from the user's normal mouse pointer. */
+.gaze-cursor-settings { margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--line, #dfe0d5); }
+.gaze-cursor-option { display: flex; align-items: center; gap: 7px; font-size: 11px; line-height: 1.6; cursor: pointer; }
+.gaze-cursor-option input { width: 13px; height: 13px; margin: 0; accent-color: var(--green, #264d3e); flex-shrink: 0; }
+.gaze-cursor-swatch { width: 2px; height: 15px; margin-left: auto; margin-right: 5px; border-radius: 2px; background: #bf7149; box-shadow: 0 0 0 1px #fbfaf2e6; }
+.gaze-cursor-settings p { margin: 8px 0 0; color: var(--muted, #7e8579); font-size: 9px; line-height: 1.8; }
+.gaze-cursor-settings .gaze-cursor-status { color: #947657; font-size: 8px; margin-top: 5px; }
+#gaze-cursor { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 10002; overflow: visible; pointer-events: none !important; user-select: none; transition: none; animation: none; }
+#gaze-cursor *, #gaze-cursor::before, #gaze-cursor::after, #gaze-cursor *::before, #gaze-cursor *::after { pointer-events: none !important; user-select: none; transition: none; animation: none; }
+.gaze-cursor-reticle { position: absolute; left: 0; top: 0; display: block; width: 2px; height: 20px; transform: translate(-50%, -50%); border: 0; border-radius: 2px; background: #bf7149; box-shadow: 0 0 0 1px #fbfaf2e6, 0 1px 4px #223b2d38; }
+@media (max-width: 640px) {
+  .control-panel > .gaze-cursor-settings { grid-column: 1 / -1; margin-top: 0; padding-top: 12px; }
+}

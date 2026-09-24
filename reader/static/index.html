@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#214a3c">
+  <meta name="description" content="目讀 — 跟著你的目光，慢慢讀懂英文。支援 PDF、Markdown、文字及 Word 文件。">
+  <title>目讀 · Gaze Reader</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%23264d3e'/%3E%3Cpath d='M5 16s4-7 11-7 11 7 11 7-4 7-11 7S5 16 5 16Z' fill='none' stroke='%23f8f6f0' stroke-width='1.6'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='none' stroke='%23f8f6f0' stroke-width='1.6'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/gaze.css">
+  <script type="module" src="/static/app.js"></script>
+</head>
+<body>
+  <svg class="icon-definitions" aria-hidden="true"><defs>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H5v18h14V8l-5-5Zm0 0v6h5M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5v16M3 3c4-1 7 0 9 2 2-2 5-3 9-2v16c-4-1-7 0-9 2-2-2-5-3-9-2V3Z"/></symbol>
+    <symbol id="i-mouse" viewBox="0 0 24 24"><path d="m5 3 14 10-7 1-3 7L5 3Z"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3 7h4l2-3h6l2 3h4v14H3V7Z"/><circle cx="12" cy="13" r="4"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m7 4 13 8-13 8V4Z"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 2 2.8 7.2L22 12l-7.2 2.8L12 22l-2.8-7.2L2 12l7.2-2.8L12 2ZM20 2v4m-2-2h4"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4V3Z"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-cards" viewBox="0 0 24 24"><rect x="6" y="6" width="15" height="15" rx="2"/><path d="M17 3H5a2 2 0 0 0-2 2v12M10 11h7m-7 5h4"/></symbol>
+    <symbol id="i-speaker" viewBox="0 0 24 24"><path d="m11 4-6 5H2v6h3l6 5V4Zm4 4a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="9" r="5"/><path d="m12 13 8 8m-4-4 3-3m-6 0 3-3"/></symbol>
+  </defs></svg>
+  <header class="app-header">
+    <a class="brand" href="/" aria-label="目讀主頁"><span class="brand-mark"><svg><use href="#i-eye"/></svg></span><span class="brand-name">目讀<span>GAZE READER</span></span></a>
+    <p class="header-note">讓理解，跟上你的目光。</p>
+    <button id="flashcards-open" class="button quiet header-review"><svg class="icon"><use href="#i-cards"/></svg>溫習卡<span id="review-count" class="count">0</span></button>
+    <button id="vocabulary-open" class="button quiet"><svg class="icon"><use href="#i-book"/></svg>學習簿<span id="vocab-count" class="count">0</span></button>
+  </header>
+
+  <main class="workspace">
+    <aside class="control-panel" aria-label="閱讀控制">
+      <div class="section-heading"><span>你的閱讀空間</span><span class="tiny-label">01</span></div>
+      <label class="upload-zone" id="drop-zone" for="file-input" tabindex="0" role="button" aria-label="匯入文件">
+        <span class="upload-icon"><svg class="icon"><use href="#i-plus"/></svg></span>
+        <strong>放低一篇文章</strong><span>拖放文件，或者按此匯入</span>
+        <small>PDF · MD · TXT · DOCX</small>
+      </label>
+      <input id="file-input" type="file" accept=".pdf,.md,.markdown,.txt,.docx" hidden>
+      <button id="paste-open" class="button full subtle">貼上英文文字<svg class="icon small"><use href="#i-arrow"/></svg></button>
+      <button id="demo-load" class="demo-link"><svg class="icon small"><use href="#i-file"/></svg>讀一篇示範文章</button>
+
+      <section class="learning-card" aria-labelledby="learning-card-title">
+        <div class="learning-card-heading"><svg class="icon small" aria-hidden="true"><use href="#i-book"/></svg><h2 id="learning-card-title">把生字變成記憶</h2></div>
+        <p id="learning-summary">收藏的生字與溫習卡，都放在你的學習簿。</p>
+        <button id="learning-notebook-open" class="button full learning-notebook-button">打開學習簿<svg class="icon small"><use href="#i-arrow"/></svg></button>
+        <button id="learning-review-open" class="button full quiet learning-review-button"><svg class="icon small"><use href="#i-cards"/></svg>溫習 Flash Card</button>
+      </section>
+
+      <div class="panel-divider"></div>
+      <div class="section-heading"><span>追蹤方式</span><span id="tracking-dot" class="status-dot"></span></div>
+      <div class="segmented" role="group" aria-label="追蹤方式">
+        <button id="mode-mouse" class="selected" aria-pressed="true"><svg class="icon small"><use href="#i-mouse"/></svg>滑鼠</button>
+        <button id="mode-camera" aria-pressed="false"><svg class="icon small"><use href="#i-camera"/></svg>鏡頭<span class="beta">實驗</span></button>
+      </div>
+      <p id="mode-help" class="control-help">移動滑鼠，試試用目光閱讀的感覺。停留一會，就會出現解釋。</p>
+      <button id="calibrate" class="button full subtle" hidden>重新校準鏡頭<svg class="icon small"><use href="#i-eye"/></svg></button>
+      <div id="camera-note" class="camera-note" hidden>鏡頭追蹤屬實驗功能，普通 webcam 未必能準確定位每一粒字。校準後可用滑鼠或點擊修正；影像留在瀏覽器內。</div>
+      <div id="gaze-cursor-settings" class="gaze-cursor-settings" hidden>
+        <label class="gaze-cursor-option" for="gaze-cursor-enabled"><input id="gaze-cursor-enabled" type="checkbox" checked aria-describedby="gaze-cursor-help"><span>顯示視線游標</span><span class="gaze-cursor-swatch" aria-hidden="true"></span></label>
+        <p id="gaze-cursor-help">游標固定在文章字詞之間，減少跳動。</p>
+        <p id="gaze-cursor-status" class="gaze-cursor-status" aria-live="polite">校準後顯示視線位置</p>
+      </div>
+
+      <div class="panel-divider"></div>
+      <div class="section-heading"><span>調到舒服就好</span></div>
+      <div class="slider-field"><label for="font-size">文字大小</label><output id="font-output" for="font-size">24 px</output><input id="font-size" type="range" min="18" max="34" value="24" step="1"></div>
+      <div class="slider-field"><label for="line-height">行距</label><output id="spacing-output" for="line-height">1.9</output><input id="line-height" type="range" min="1.5" max="2.5" value="1.9" step="0.1"></div>
+      <div class="slider-field"><label for="dwell-time">停留多久才解釋</label><output id="dwell-output" for="dwell-time">1.8 秒</output><input id="dwell-time" type="range" min="1" max="4" value="1.8" step="0.1"></div>
+      <label class="select-field" for="revisit-count"><span>重讀觸發</span><select id="revisit-count"><option value="2">2 次</option><option value="3" selected>3 次</option><option value="4">4 次</option><option value="5">5 次</option></select></label>
+
+      <div class="ai-setting"><div class="ai-setting-title"><svg class="icon small"><use href="#i-spark"/></svg><strong>AI 理解助手</strong><label class="switch"><input id="ai-enabled" type="checkbox" disabled aria-label="啟用線上 AI"><span></span></label></div><p id="ai-help">正在檢查 AI 連線設定…</p></div>
+      <div class="api-settings-entry"><button id="api-settings-open" class="button full outline" aria-haspopup="dialog" aria-controls="api-settings-dialog"><svg class="icon small"><use href="#i-key"/></svg><span>API 設定</span><svg class="icon small api-settings-arrow"><use href="#i-arrow"/></svg></button><p id="api-settings-summary">設定 TokenHub，按需要生成單字圖片。</p></div>
+      <p class="local-note"><span class="status-dot muted"></span>文件留在本機，閱讀按你步伐</p>
+    </aside>
+
+    <section class="reading-pane" aria-label="英文文章">
+      <div class="reader-toolbar"><span class="reading-label"><span class="status-dot"></span>READING ROOM</span><button id="pause-toggle" class="button quiet compact" aria-pressed="false"><svg class="icon small"><use href="#i-pause"/></svg><span>暫停追蹤</span></button></div>
+      <div id="document-meta" class="document-meta"><span id="document-source">示範閱讀</span><span class="meta-separator">/</span><span id="word-count">載入中</span></div>
+      <h1 id="document-title">A little space<br>to understand.</h1>
+      <div class="document-rule"><span></span><svg class="icon small"><use href="#i-book"/></svg></div>
+      <p id="document-warning" class="document-warning" hidden></p>
+      <article id="article" class="article" lang="en" aria-label="可追蹤的文章內容"><p class="loading-copy">正在為你打開一篇文章…</p></article>
+      <footer class="reader-footer"><div class="footer-motif">目</div><span>慢慢讀，每一個字都算數。</span><div class="read-progress"><span id="progress-label">0 字已瀏覽</span><div class="progress-track"><span id="reading-progress"></span></div></div></footer>
+    </section>
+
+    <aside class="understanding-panel" aria-label="字詞理解助手">
+      <div class="section-heading"><span>此刻的理解</span><svg class="icon small"><use href="#i-spark"/></svg></div>
+      <div class="attention-card"><div><span class="attention-dot"></span><span id="attention-label">準備好，慢慢讀</span></div><div class="dwell-track"><span id="dwell-progress"></span></div><p id="focus-status">把滑鼠移到文章中的英文單字</p></div>
+      <div id="explanation-empty" class="explanation-empty"><div class="empty-illustration" aria-hidden="true"><span class="orbit orbit-one"></span><span class="orbit orbit-two"></span><span class="illustration-word">a</span><span class="small-star">✦</span></div><h2>多停留一下，<br>就多明白一點。</h2><p>文字會隨你的焦點放大。<br>遇上不熟悉的字，停留或點擊，<br>讓中文解釋陪你一起讀。</p><div class="empty-footnote"><span>01</span> 指向一個單字<br><span>02</span> 停留片刻，理解浮現</div></div>
+      <div id="explanation" class="explanation" hidden>
+        <div class="explanation-top"><span id="explanation-source" class="source-badge"></span><span id="explanation-reason" class="reason-label"></span></div>
+        <div class="pronunciation-heading"><h2 id="selected-word" lang="en"></h2><button id="pronounce-word" class="pronunciation-button" type="button" aria-label="聽英文發音" aria-describedby="pronunciation-status" title="聽英文發音" disabled><svg class="icon" aria-hidden="true"><use href="#i-speaker"/></svg></button></div>
+        <p id="pronunciation-status" class="pronunciation-status" role="status"></p>
+        <p id="word-meaning" class="word-meaning"></p>
+        <div id="explanation-message" class="explanation-message" hidden></div>
+        <section id="translation-section" class="meaning-section"><h3>放回句子裡理解</h3><p id="selected-sentence" class="selected-sentence" lang="en"></p><p id="sentence-translation" class="sentence-translation"></p></section>
+        <section id="example-section" class="meaning-section" hidden><h3>用法與例子</h3><p id="word-example"></p></section>
+        <section id="visual-section" class="meaning-section" hidden><h3>在腦海裡畫出來</h3><p id="visual-hint"></p></section>
+        <button id="save-word" class="button full save-button"><svg class="icon small"><use href="#i-save"/></svg><span>加入生字與溫習卡</span></button>
+        <div class="image-card"><div class="image-card-heading"><svg class="icon"><use href="#i-spark"/></svg><strong>換個方式理解</strong></div><p>把這個字變成一幅圖，讓意思更容易記住。</p><button id="generate-image" class="button full outline" disabled>為這個字畫張圖<svg class="icon small"><use href="#i-arrow"/></svg></button><small id="image-note">尚未設定生圖服務，可配置騰訊 TokenHub 或本機模型。</small><div id="word-image" hidden></div></div>
+      </div>
+      <div class="understanding-bottom"><span class="tiny-label">A LITTLE CLARITY, AT A TIME.</span><svg class="icon"><use href="#i-eye"/></svg></div>
+    </aside>
+  </main>
+  <div id="focus-lens" class="focus-lens" aria-hidden="true" hidden></div>
+  <button id="pronounce-focus" class="pronunciation-button pronunciation-floating" type="button" aria-label="聽英文發音" title="聽英文發音" hidden><svg class="icon" aria-hidden="true"><use href="#i-speaker"/></svg></button>
+  <div id="gaze-cursor" aria-hidden="true" hidden><span class="gaze-cursor-reticle"></span></div>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <div id="busy-indicator" class="busy-indicator" role="status" hidden><span></span><p>正在整理文章…</p></div>
+  <dialog id="paste-dialog"><form id="paste-form"><div class="dialog-top"><div><span class="eyebrow">YOUR NEXT READ</span><h2>貼上想讀的文章</h2></div><button type="button" class="icon-button dialog-close" aria-label="關閉"><svg class="icon"><use href="#i-close"/></svg></button></div><label for="paste-title">文章名稱 <span class="optional">（選填）</span></label><input type="text" id="paste-title" maxlength="160" placeholder="例如：A walk in the woods"><label for="paste-text">英文內文</label><textarea id="paste-text" rows="10" placeholder="Paste your English article here…" required maxlength="150000"></textarea><p class="dialog-note">文字會在本機整理成適合追蹤閱讀的版面。</p><button type="submit" class="button primary full">開始閱讀<svg class="icon small"><use href="#i-arrow"/></svg></button></form></dialog>
+  <dialog id="api-settings-dialog" aria-labelledby="api-settings-title">
+    <form id="api-settings-form">
+      <div class="dialog-top"><div><span class="eyebrow">IMAGE CONNECTION</span><h2 id="api-settings-title">TokenHub API 設定</h2></div><button type="button" class="icon-button dialog-close" aria-label="關閉 API 設定"><svg class="icon"><use href="#i-close"/></svg></button></div>
+      <p class="dialog-note api-settings-intro">只用於單字生圖；英文發音繼續使用本機聲音。</p>
+      <label for="tokenhub-api-key">TokenHub API Key</label>
+      <input id="tokenhub-api-key" name="api_key" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="512" placeholder="貼上 TokenHub API Key" aria-describedby="tokenhub-key-help" disabled>
+      <p id="tokenhub-key-help" class="api-field-help">密鑰儲存於這部電腦，留空保留已設定的 Key。</p>
+      <label for="tokenhub-base-url">服務站點與地區</label>
+      <select id="tokenhub-base-url" name="base_url" disabled>
+        <option value="https://tokenhub.tencentmaas.com/v1">中國站 · 廣州（tencentmaas.com）</option>
+        <option value="https://tokenhub-intl.tencentmaas.com/v1">中國站 · 新加坡（tencentmaas.com）</option>
+        <option value="https://tokenhub.tencentcloudmaas.com/v1">國際站 · 廣州（tencentcloudmaas.com）</option>
+        <option value="https://tokenhub-intl.tencentcloudmaas.com/v1">國際站 · 新加坡（tencentcloudmaas.com）</option>
+      </select>
+      <div class="api-model-row"><span>生圖模型</span><code>hy-image-v3</code></div>
+      <p class="api-field-help">只會在你按下生圖按鈕後發出請求，可能產生 API 費用。</p>
+      <p id="tokenhub-settings-status" class="api-settings-status" role="status">正在讀取本機設定…</p>
+      <button id="tokenhub-settings-save" class="button primary full" type="submit" disabled>儲存設定<svg class="icon small"><use href="#i-check"/></svg></button>
+    </form>
+  </dialog>
+  <dialog id="vocabulary-dialog">
+    <div class="dialog-top"><div><span class="eyebrow">WORDS TO KEEP</span><h2>我的學習簿</h2></div><button class="icon-button dialog-close" aria-label="關閉"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <p class="learning-flow-note">文章點選單字 → 加入生字與溫習卡 → 在這裡溫習。</p>
+    <p class="dialog-note">收藏只儲存在這個瀏覽器。匯出一份，讓記憶慢慢累積。</p>
+    <section class="review-invitation" aria-labelledby="review-invitation-title">
+      <div class="review-invitation-heading"><span class="review-card-symbol" aria-hidden="true"><svg class="icon"><use href="#i-cards"/></svg></span><div><h3 id="review-invitation-title" lang="en">Flash Cards</h3><p id="review-summary">每一個收藏，都是下一次理解的開始。</p></div></div>
+      <div class="review-invitation-actions"><button id="review-due" class="button primary">開始到期溫習<svg class="icon small"><use href="#i-arrow"/></svg></button><button id="review-all" class="button quiet">全部練習</button></div>
+      <p class="review-local-note">收藏的生字會自動變成溫習卡，進度只儲存在這個瀏覽器。</p>
+    </section>
+    <div id="vocabulary-list"></div>
+    <div class="vocabulary-actions"><button id="export-csv" class="button outline"><svg class="icon small"><use href="#i-download"/></svg>匯出 CSV</button><button id="export-json" class="button quiet">JSON</button><button id="clear-vocabulary" class="button quiet danger">清空收藏</button></div>
+  </dialog>
+  <dialog id="flashcard-dialog" aria-labelledby="flashcard-title">
+    <div class="dialog-top"><div><span class="eyebrow">FLASH CARDS</span><h2 id="flashcard-title">溫習卡</h2></div><button class="icon-button dialog-close" aria-label="關閉溫習卡"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <div id="flashcard-session" hidden>
+      <div class="flashcard-status-row"><span id="flashcard-progress">準備開始</span><span class="flashcard-status-motif" aria-hidden="true">想一想，再翻面。</span></div>
+      <div id="flashcard-card" class="flashcard-paper">
+        <div class="flashcard-paper-heading"><span id="flashcard-side">先試著想起意思</span><svg class="icon small" aria-hidden="true"><use href="#i-cards"/></svg></div>
+        <div class="pronunciation-heading"><h3 id="flashcard-word" lang="en"></h3><button id="pronounce-flashcard" class="pronunciation-button" type="button" aria-label="聽英文發音" aria-describedby="flashcard-pronunciation-status" title="聽英文發音" disabled><svg class="icon" aria-hidden="true"><use href="#i-speaker"/></svg></button></div>
+        <p id="flashcard-pronunciation-status" class="pronunciation-status" role="status"></p>
+        <p id="flashcard-sentence" lang="en"></p>
+        <p id="flashcard-document" hidden></p>
+        <section id="flashcard-answer" class="flashcard-answer" aria-label="字詞解釋" hidden>
+          <p id="flashcard-meaning"></p>
+          <p id="flashcard-translation"></p>
+          <div id="flashcard-example-section" class="flashcard-answer-detail" hidden><h4>用法與例子</h4><p id="flashcard-example"></p></div>
+          <div id="flashcard-hint-section" class="flashcard-answer-detail" hidden><h4>在腦海裡畫出來</h4><p id="flashcard-hint"></p></div>
+        </section>
+      </div>
+      <button id="flashcard-reveal" class="button primary full flashcard-reveal">翻面睇解釋<svg class="icon small"><use href="#i-arrow"/></svg></button>
+      <div id="flashcard-ratings" class="flashcard-ratings" role="group" aria-label="你記得這個字嗎？" hidden>
+        <button id="flashcard-again" class="button flashcard-rating-again"><span>未記熟</span><small>10 分鐘後</small></button>
+        <button id="flashcard-remembered" class="button primary"><span>記得</span><span id="flashcard-next-interval" class="flashcard-interval">1 日後</span></button>
+      </div>
+      <p class="flashcard-keyboard-note">空白鍵翻面 <span>·</span> 1 未記熟 <span>·</span> 2 記得</p>
+      <p class="flashcard-schedule-note">評分會更新下次溫習時間；全部練習亦一樣。</p>
+    </div>
+    <div id="flashcard-empty" class="flashcard-empty">
+      <span class="flashcard-empty-symbol" aria-hidden="true"><svg class="icon"><use href="#i-cards"/></svg><span>✦</span></span>
+      <h3 id="flashcard-empty-title">每次重遇，都記得多一點。</h3>
+      <p id="flashcard-empty-message">閱讀時，把想記住的生字收藏起來。下次打開溫習卡，就可以逐個練習。</p>
+      <div class="flashcard-empty-actions"><button id="flashcard-practice" class="button primary full">全部再練一次<svg class="icon small"><use href="#i-arrow"/></svg></button><button id="flashcard-return" class="button quiet full">返回閱讀</button></div>
+    </div>
+    <p id="flashcard-feedback" class="flashcard-feedback" role="status" aria-live="polite"></p>
+  </dialog>
+</body>
+</html>
